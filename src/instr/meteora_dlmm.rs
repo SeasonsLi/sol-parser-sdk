@@ -64,7 +64,7 @@ pub fn parse_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     if instruction_data.is_empty() {
         return None;
@@ -74,14 +74,14 @@ pub fn parse_instruction(
     let data = &instruction_data[1..];
 
     match instruction_type {
-        0 => parse_initialize_lb_pair_instruction(data, accounts, signature, slot, tx_index, block_time),
-        1 => parse_initialize_bin_array_instruction(data, accounts, signature, slot, tx_index, block_time),
-        2 => parse_add_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time),
-        7 => parse_remove_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time),
-        8 => parse_initialize_position_instruction(data, accounts, signature, slot, tx_index, block_time),
-        11 => parse_swap_instruction(data, accounts, signature, slot, tx_index, block_time),
-        13 => parse_claim_fee_instruction(data, accounts, signature, slot, tx_index, block_time),
-        14 => parse_close_position_instruction(data, accounts, signature, slot, tx_index, block_time),
+        0 => parse_initialize_lb_pair_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        1 => parse_initialize_bin_array_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        2 => parse_add_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        7 => parse_remove_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        8 => parse_initialize_position_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        11 => parse_swap_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        13 => parse_claim_fee_instruction(data, accounts, signature, slot, tx_index, block_time_us),
+        14 => parse_close_position_instruction(data, accounts, signature, slot, tx_index, block_time_us),
         _ => None,
     }
 }
@@ -93,7 +93,7 @@ fn parse_initialize_lb_pair_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -103,7 +103,7 @@ fn parse_initialize_lb_pair_instruction(
     let bin_step = read_u16_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmInitializePool(MeteoraDlmmInitializePoolEvent {
         metadata,
@@ -121,14 +121,14 @@ fn parse_initialize_bin_array_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
     let index = read_u64_le(data, offset)? as i64;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmInitializeBinArray(MeteoraDlmmInitializeBinArrayEvent {
         metadata,
@@ -145,7 +145,7 @@ fn parse_add_liquidity_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -155,7 +155,7 @@ fn parse_add_liquidity_instruction(
     let amounts = read_vec_u64(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmAddLiquidity(MeteoraDlmmAddLiquidityEvent {
         metadata,
@@ -177,7 +177,7 @@ fn parse_remove_liquidity_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -187,7 +187,7 @@ fn parse_remove_liquidity_instruction(
     let amounts = read_vec_u64(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmRemoveLiquidity(MeteoraDlmmRemoveLiquidityEvent {
         metadata,
@@ -209,7 +209,7 @@ fn parse_initialize_position_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -219,7 +219,7 @@ fn parse_initialize_position_instruction(
     let width = read_u32_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmCreatePosition(MeteoraDlmmCreatePositionEvent {
         metadata,
@@ -238,7 +238,7 @@ fn parse_swap_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -248,7 +248,7 @@ fn parse_swap_instruction(
     let min_amount_out = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmSwap(MeteoraDlmmSwapEvent {
         metadata,
@@ -273,10 +273,10 @@ fn parse_claim_fee_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmClaimFee(MeteoraDlmmClaimFeeEvent {
         metadata,
@@ -295,10 +295,10 @@ fn parse_close_position_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraDlmmClosePosition(MeteoraDlmmClosePositionEvent {
         metadata,

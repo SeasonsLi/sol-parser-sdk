@@ -125,12 +125,18 @@ pub fn read_bool(data: &[u8], offset: usize) -> Option<bool> {
     Some(data[offset] == 1)
 }
 
+/// 将 prost_types::Timestamp 转换为微秒表示
+pub fn timestamp_to_microseconds(ts: &prost_types::Timestamp) -> i128 {
+    // 用 i128 避免溢出
+    ts.seconds as i128 * 1_000_000 + (ts.nanos as i128 / 1_000)
+}
+
 /// 创建事件元数据的通用函数
 pub fn create_metadata_simple(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     program_id: Pubkey,
     grpc_recv_us: i64,
 ) -> EventMetadata {
@@ -138,7 +144,7 @@ pub fn create_metadata_simple(
         signature,
         slot,
         tx_index,
-        block_time_us: block_time.unwrap_or(0) * 1_000_000,
+        block_time_us: block_time_us.unwrap_or(0),
         grpc_recv_us,
     }
 }
@@ -148,7 +154,7 @@ pub fn create_metadata_default(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> EventMetadata {
     // 优化：macOS 使用 CLOCK_REALTIME（Linux 可用 CLOCK_REALTIME_COARSE）
     let current_time = unsafe {
@@ -162,12 +168,11 @@ pub fn create_metadata_default(
         libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
         (ts.tv_sec as i64 * 1_000_000) + (ts.tv_nsec as i64 / 1_000)
     };
-
     EventMetadata {
         signature,
         slot,
         tx_index,
-        block_time_us: block_time.unwrap_or(0) * 1_000_000,
+        block_time_us: block_time_us.unwrap_or(0),
         grpc_recv_us: current_time,
     }
 }

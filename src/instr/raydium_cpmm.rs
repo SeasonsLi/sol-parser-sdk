@@ -26,7 +26,7 @@ pub fn parse_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     if instruction_data.len() < 8 {
         return None;
@@ -37,19 +37,19 @@ pub fn parse_instruction(
 
     match discriminator {
         discriminators::SWAP_BASE_IN => {
-            parse_swap_base_in_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_swap_base_in_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::SWAP_BASE_OUT => {
-            parse_swap_base_out_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_swap_base_out_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::INITIALIZE => {
-            parse_initialize_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_initialize_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::DEPOSIT => {
-            parse_deposit_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_deposit_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::WITHDRAW => {
-            parse_withdraw_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_withdraw_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         _ => None,
     }
@@ -62,7 +62,7 @@ fn parse_swap_base_in_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -72,7 +72,7 @@ fn parse_swap_base_in_instruction(
     let minimum_amount_out = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::RaydiumCpmmSwap(RaydiumCpmmSwapEvent {
         metadata,
@@ -114,7 +114,7 @@ fn parse_swap_base_out_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -124,7 +124,7 @@ fn parse_swap_base_out_instruction(
     let amount_out = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::RaydiumCpmmSwap(RaydiumCpmmSwapEvent {
         metadata,
@@ -166,7 +166,7 @@ fn parse_initialize_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -179,7 +179,7 @@ fn parse_initialize_instruction(
     let open_time = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::RaydiumCpmmInitialize(RaydiumCpmmInitializeEvent {
         metadata,
@@ -197,7 +197,7 @@ fn parse_deposit_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -210,7 +210,7 @@ fn parse_deposit_instruction(
     let maximum_token_1_amount = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::RaydiumCpmmDeposit(RaydiumCpmmDepositEvent {
         metadata,
@@ -229,7 +229,7 @@ fn parse_withdraw_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -242,7 +242,7 @@ fn parse_withdraw_instruction(
     let minimum_token_1_amount = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::RaydiumCpmmWithdraw(RaydiumCpmmWithdrawEvent {
         metadata,

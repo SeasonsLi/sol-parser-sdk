@@ -2,22 +2,29 @@
 //!
 //! 使用预计算的字符串常量和优化的匹配策略
 
+use super::perf_hints::{likely, unlikely};
 use crate::core::events::DexEvent;
 use crate::grpc::types::{EventType, EventTypeFilter};
-use solana_sdk::signature::Signature;
 use memchr::memmem;
 use once_cell::sync::Lazy;
-use super::perf_hints::{likely, unlikely};
+use solana_sdk::signature::Signature;
 
 /// SIMD 优化的字符串查找器 - 预编译一次，重复使用
-static PUMPFUN_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"));
-static RAYDIUM_AMM_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"));
-static RAYDIUM_CLMM_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6"));
-static RAYDIUM_CPMM_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD"));
-static BONK_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"Bxby5A7E8xPDGGc3FyJw7m5eK5aqNVLU83H2zLTQDH1b"));
+static PUMPFUN_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"));
+static RAYDIUM_AMM_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"));
+static RAYDIUM_CLMM_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6"));
+static RAYDIUM_CPMM_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD"));
+static BONK_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"Bxby5A7E8xPDGGc3FyJw7m5eK5aqNVLU83H2zLTQDH1b"));
 static PROGRAM_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"Program"));
-static PROGRAM_DATA_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"Program data: "));
-static PUMPFUN_CREATE_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"Program data: GB7IKAUcB3c"));
+static PROGRAM_DATA_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"Program data: "));
+static PUMPFUN_CREATE_FINDER: Lazy<memmem::Finder> =
+    Lazy::new(|| memmem::Finder::new(b"Program data: GB7IKAUcB3c"));
 static WHIRL_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"whirL"));
 static METEORA_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"meteora"));
 static METEORA_LB_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"LB"));
@@ -35,12 +42,16 @@ pub mod program_id_strings {
     pub const BONK_SUCCESS: &str = "Program Bxby5A7E8xPDGGc3FyJw7m5eK5aqNVLU83H2zLTQDH1b success";
     pub const BONK_ID: &str = "Bxby5A7E8xPDGGc3FyJw7m5eK5aqNVLU83H2zLTQDH1b";
 
-    pub const RAYDIUM_CLMM_INVOKE: &str = "Program CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6 invoke";
-    pub const RAYDIUM_CLMM_SUCCESS: &str = "Program CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6 success";
+    pub const RAYDIUM_CLMM_INVOKE: &str =
+        "Program CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6 invoke";
+    pub const RAYDIUM_CLMM_SUCCESS: &str =
+        "Program CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6 success";
     pub const RAYDIUM_CLMM_ID: &str = "CAMMCzo5YL8w4VFF8KVHrK22GGUQpMdRBFSzKNT3t4ivN6";
 
-    pub const RAYDIUM_CPMM_INVOKE: &str = "Program CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD invoke";
-    pub const RAYDIUM_CPMM_SUCCESS: &str = "Program CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD success";
+    pub const RAYDIUM_CPMM_INVOKE: &str =
+        "Program CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD invoke";
+    pub const RAYDIUM_CPMM_SUCCESS: &str =
+        "Program CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD success";
     pub const RAYDIUM_CPMM_ID: &str = "CPMDWBwJDtYax9qKcQP3CtKz7tHjJsN3H8hGrYVD9mZD";
 
     pub const RAYDIUM_AMM_V4_ID: &str = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
@@ -50,7 +61,7 @@ pub mod program_id_strings {
     pub const PROGRAM_LOG: &str = "Program log: ";
 
     // PumpFun 事件 discriminator (base64)
-    pub const PUMPFUN_CREATE_DISCRIMINATOR: &str = "GB7IKAUcB3c";  // [24, 30, 200, 40, 5, 28, 7, 119]
+    pub const PUMPFUN_CREATE_DISCRIMINATOR: &str = "GB7IKAUcB3c"; // [24, 30, 200, 40, 5, 28, 7, 119]
 }
 
 /// 快速日志类型枚举
@@ -126,7 +137,9 @@ pub fn detect_log_type(log: &str) -> LogType {
     }
 
     // Pump AMM
-    if PUMPSWAP_LOWER_FINDER.find(log_bytes).is_some() || PUMPSWAP_UPPER_FINDER.find(log_bytes).is_some() {
+    if PUMPSWAP_LOWER_FINDER.find(log_bytes).is_some()
+        || PUMPSWAP_UPPER_FINDER.find(log_bytes).is_some()
+    {
         return LogType::PumpAmm;
     }
 
@@ -153,7 +166,7 @@ pub fn parse_log_optimized(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
     event_type_filter: Option<&EventTypeFilter>,
     is_created_buy: bool,
@@ -169,7 +182,13 @@ pub fn parse_log_optimized(
                 if likely(log_type == LogType::PumpFun) {
                     // 使用优化解析器：栈分配，无堆分配，内联函数
                     return crate::logs::parse_pumpfun_trade(
-                        log, signature, slot, tx_index, block_time, grpc_recv_us, is_created_buy
+                        log,
+                        signature,
+                        slot,
+                        tx_index,
+                        block_time_us,
+                        grpc_recv_us,
+                        is_created_buy,
                     );
                 } else {
                     return None;
@@ -178,21 +197,47 @@ pub fn parse_log_optimized(
 
             // 提前过滤：如果该协议的所有事件都不在过滤范围内，直接跳过解析
             let should_parse = match log_type {
-                LogType::PumpFun => include_only.iter().any(|t| matches!(t,
-                    EventType::PumpFunTrade | EventType::PumpFunCreate |
-                    EventType::PumpFunComplete | EventType::PumpFunMigrate)),
-                LogType::RaydiumAmm => include_only.iter().any(|t| matches!(t,
-                    EventType::RaydiumAmmV4Swap | EventType::RaydiumAmmV4Deposit |
-                    EventType::RaydiumAmmV4Withdraw | EventType::RaydiumAmmV4Initialize2 |
-                    EventType::RaydiumAmmV4WithdrawPnl)),
-                LogType::RaydiumClmm => include_only.iter().any(|t| matches!(t,
-                    EventType::RaydiumClmmSwap | EventType::RaydiumClmmCreatePool |
-                    EventType::RaydiumClmmOpenPosition | EventType::RaydiumClmmClosePosition |
-                    EventType::RaydiumClmmIncreaseLiquidity | EventType::RaydiumClmmDecreaseLiquidity |
-                    EventType::RaydiumClmmOpenPositionWithTokenExtNft | EventType::RaydiumClmmCollectFee)),
-                LogType::RaydiumCpmm => include_only.iter().any(|t| matches!(t,
-                    EventType::RaydiumCpmmSwap | EventType::RaydiumCpmmDeposit |
-                    EventType::RaydiumCpmmWithdraw | EventType::RaydiumCpmmInitialize)),
+                LogType::PumpFun => include_only.iter().any(|t| {
+                    matches!(
+                        t,
+                        EventType::PumpFunTrade
+                            | EventType::PumpFunCreate
+                            | EventType::PumpFunComplete
+                            | EventType::PumpFunMigrate
+                    )
+                }),
+                LogType::RaydiumAmm => include_only.iter().any(|t| {
+                    matches!(
+                        t,
+                        EventType::RaydiumAmmV4Swap
+                            | EventType::RaydiumAmmV4Deposit
+                            | EventType::RaydiumAmmV4Withdraw
+                            | EventType::RaydiumAmmV4Initialize2
+                            | EventType::RaydiumAmmV4WithdrawPnl
+                    )
+                }),
+                LogType::RaydiumClmm => include_only.iter().any(|t| {
+                    matches!(
+                        t,
+                        EventType::RaydiumClmmSwap
+                            | EventType::RaydiumClmmCreatePool
+                            | EventType::RaydiumClmmOpenPosition
+                            | EventType::RaydiumClmmClosePosition
+                            | EventType::RaydiumClmmIncreaseLiquidity
+                            | EventType::RaydiumClmmDecreaseLiquidity
+                            | EventType::RaydiumClmmOpenPositionWithTokenExtNft
+                            | EventType::RaydiumClmmCollectFee
+                    )
+                }),
+                LogType::RaydiumCpmm => include_only.iter().any(|t| {
+                    matches!(
+                        t,
+                        EventType::RaydiumCpmmSwap
+                            | EventType::RaydiumCpmmDeposit
+                            | EventType::RaydiumCpmmWithdraw
+                            | EventType::RaydiumCpmmInitialize
+                    )
+                }),
                 _ => true,
             };
 
@@ -204,16 +249,87 @@ pub fn parse_log_optimized(
 
     // 根据类型直接调用相应的解析器，传入grpc_recv_us
     let event = match log_type {
-        LogType::PumpFun => crate::logs::parse_pumpfun_log(log, signature, slot, tx_index, block_time, grpc_recv_us, is_created_buy),
-        LogType::RaydiumLaunchpad => crate::logs::parse_raydium_launchpad_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::PumpAmm => crate::logs::parse_pump_amm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::RaydiumClmm => crate::logs::parse_raydium_clmm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::RaydiumCpmm => crate::logs::parse_raydium_cpmm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::RaydiumAmm => crate::logs::parse_raydium_amm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::OrcaWhirlpool => crate::logs::parse_orca_whirlpool_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::MeteoraAmm => crate::logs::parse_meteora_amm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::MeteoraDamm => crate::logs::parse_meteora_damm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
-        LogType::MeteoraDlmm => crate::logs::parse_meteora_dlmm_log(log, signature, slot, tx_index, block_time, grpc_recv_us),
+        LogType::PumpFun => crate::logs::parse_pumpfun_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+            is_created_buy,
+        ),
+        LogType::RaydiumLaunchpad => crate::logs::parse_raydium_launchpad_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::PumpAmm => crate::logs::parse_pump_amm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::RaydiumClmm => crate::logs::parse_raydium_clmm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::RaydiumCpmm => crate::logs::parse_raydium_cpmm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::RaydiumAmm => crate::logs::parse_raydium_amm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::OrcaWhirlpool => crate::logs::parse_orca_whirlpool_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::MeteoraAmm => crate::logs::parse_meteora_amm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::MeteoraDamm => crate::logs::parse_meteora_damm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        LogType::MeteoraDlmm => crate::logs::parse_meteora_dlmm_log(
+            log,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
         LogType::Unknown => None,
     };
 
@@ -246,7 +362,5 @@ pub fn parse_log_optimized(
 /// SIMD 优化的 PumpFun Create 事件检测（扫描所有日志）
 #[inline]
 pub fn detect_pumpfun_create(logs: &[String]) -> bool {
-    logs.iter().any(|log| {
-        PUMPFUN_CREATE_FINDER.find(log.as_bytes()).is_some()
-    })
+    logs.iter().any(|log| PUMPFUN_CREATE_FINDER.find(log.as_bytes()).is_some())
 }

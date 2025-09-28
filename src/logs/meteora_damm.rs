@@ -21,8 +21,8 @@ pub mod discriminators {
 }
 
 /// 主要的 Meteora DAMM V2 日志解析函数
-pub fn parse_log(log: &str, signature: Signature, slot: u64, tx_index: u64, block_time: Option<i64>, grpc_recv_us: i64) -> Option<DexEvent> {
-    parse_structured_log(log, signature, slot, tx_index, block_time, grpc_recv_us)
+pub fn parse_log(log: &str, signature: Signature, slot: u64, tx_index: u64, block_time_us: Option<i64>, grpc_recv_us: i64) -> Option<DexEvent> {
+    parse_structured_log(log, signature, slot, tx_index, block_time_us, grpc_recv_us)
 }
 
 /// 解析结构化日志（基于 discriminator）
@@ -31,7 +31,7 @@ fn parse_structured_log(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let program_data = extract_program_data(log)?;
@@ -45,34 +45,34 @@ fn parse_structured_log(
 
     match discriminator {
         discriminators::SWAP_EVENT => {
-            parse_swap_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_swap_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::ADD_LIQUIDITY_EVENT => {
-            parse_add_liquidity_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_add_liquidity_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::REMOVE_LIQUIDITY_EVENT => {
-            parse_remove_liquidity_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_remove_liquidity_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::INITIALIZE_POOL_EVENT => {
-            parse_initialize_pool_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_initialize_pool_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::CREATE_POSITION_EVENT => {
-            parse_create_position_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_create_position_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::CLOSE_POSITION_EVENT => {
-            parse_close_position_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_close_position_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::CLAIM_POSITION_FEE_EVENT => {
-            parse_claim_position_fee_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_claim_position_fee_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::INITIALIZE_REWARD_EVENT => {
-            parse_initialize_reward_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_initialize_reward_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::FUND_REWARD_EVENT => {
-            parse_fund_reward_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_fund_reward_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         discriminators::CLAIM_REWARD_EVENT => {
-            parse_claim_reward_event(data, signature, slot, tx_index, block_time, grpc_recv_us)
+            parse_claim_reward_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
         },
         _ => None,
     }
@@ -84,7 +84,7 @@ fn parse_swap_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -121,7 +121,7 @@ fn parse_swap_event(
 
     let host_fee = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2Swap(MeteoraDammV2SwapEvent {
         metadata,
@@ -145,7 +145,7 @@ fn parse_add_liquidity_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -167,7 +167,7 @@ fn parse_add_liquidity_event(
 
     let active_bin_id = read_i32_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2AddLiquidity(MeteoraDammV2AddLiquidityEvent {
         metadata,
@@ -185,7 +185,7 @@ fn parse_remove_liquidity_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -207,7 +207,7 @@ fn parse_remove_liquidity_event(
 
     let active_bin_id = read_i32_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2RemoveLiquidity(MeteoraDammV2RemoveLiquidityEvent {
         metadata,
@@ -225,7 +225,7 @@ fn parse_initialize_pool_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -241,7 +241,7 @@ fn parse_initialize_pool_event(
 
     let token_y = read_pubkey(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2InitializePool(MeteoraDammV2InitializePoolEvent {
         metadata,
@@ -258,7 +258,7 @@ fn parse_create_position_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -271,7 +271,7 @@ fn parse_create_position_event(
 
     let owner = read_pubkey(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2CreatePosition(MeteoraDammV2CreatePositionEvent {
         metadata,
@@ -287,7 +287,7 @@ fn parse_close_position_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -297,7 +297,7 @@ fn parse_close_position_event(
 
     let owner = read_pubkey(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, position, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, position, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2ClosePosition(MeteoraDammV2ClosePositionEvent {
         metadata,
@@ -312,7 +312,7 @@ fn parse_claim_position_fee_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -331,7 +331,7 @@ fn parse_claim_position_fee_event(
 
     let fee_y = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2ClaimPositionFee(MeteoraDammV2ClaimPositionFeeEvent {
         metadata,
@@ -349,7 +349,7 @@ fn parse_initialize_reward_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -368,7 +368,7 @@ fn parse_initialize_reward_event(
 
     let reward_duration = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2InitializeReward(MeteoraDammV2InitializeRewardEvent {
         metadata,
@@ -386,7 +386,7 @@ fn parse_fund_reward_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -402,7 +402,7 @@ fn parse_fund_reward_event(
 
     let amount = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2FundReward(MeteoraDammV2FundRewardEvent {
         metadata,
@@ -419,7 +419,7 @@ fn parse_claim_reward_event(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
     let mut offset = 0;
@@ -438,7 +438,7 @@ fn parse_claim_reward_event(
 
     let total_reward = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, lb_pair, grpc_recv_us);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
     Some(DexEvent::MeteoraDammV2ClaimReward(MeteoraDammV2ClaimRewardEvent {
         metadata,
@@ -456,7 +456,7 @@ fn parse_text_log(
     _signature: Signature,
     _slot: u64,
     tx_index: u64,
-    _block_time: Option<i64>,
+    _block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     // 目前暂不实现文本解析，主要依赖结构化解析
     None

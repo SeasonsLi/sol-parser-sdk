@@ -24,7 +24,7 @@ pub fn parse_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     if instruction_data.len() < 8 {
         return None;
@@ -35,13 +35,13 @@ pub fn parse_instruction(
 
     match discriminator {
         discriminators::BUY => {
-            parse_buy_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_buy_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::SELL => {
-            parse_sell_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_sell_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::CREATE_POOL => {
-            parse_create_pool_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_create_pool_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         _ => None,
     }
@@ -54,7 +54,7 @@ fn parse_buy_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -64,7 +64,7 @@ fn parse_buy_instruction(
     let slippage = read_u16_le(data, offset)?;
 
     let token_mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, token_mint);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
 
     Some(DexEvent::PumpSwapBuy(PumpSwapBuyEvent {
         metadata,
@@ -85,7 +85,7 @@ fn parse_sell_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -95,7 +95,7 @@ fn parse_sell_instruction(
     let slippage = read_u16_le(data, offset)?;
 
     let token_mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, token_mint);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
 
     Some(DexEvent::PumpSwapSell(PumpSwapSellEvent {
         metadata,
@@ -116,7 +116,7 @@ fn parse_create_pool_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -126,7 +126,7 @@ fn parse_create_pool_instruction(
     let initial_token_reserve = read_u64_le(data, offset)?;
 
     let token_mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, token_mint);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
 
     Some(DexEvent::PumpSwapCreatePool(PumpSwapCreatePoolEvent {
         metadata,

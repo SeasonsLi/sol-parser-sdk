@@ -53,7 +53,7 @@ pub fn parse_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     if instruction_data.is_empty() {
         return None;
@@ -65,22 +65,22 @@ pub fn parse_instruction(
 
     match instruction_type {
         RaydiumAmmV4Instruction::SwapBaseIn => {
-            parse_swap_base_in_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_swap_base_in_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         RaydiumAmmV4Instruction::SwapBaseOut => {
-            parse_swap_base_out_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_swap_base_out_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         RaydiumAmmV4Instruction::Deposit => {
-            parse_deposit_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_deposit_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         RaydiumAmmV4Instruction::Withdraw => {
-            parse_withdraw_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_withdraw_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         RaydiumAmmV4Instruction::Initialize2 => {
-            parse_initialize2_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_initialize2_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         RaydiumAmmV4Instruction::WithdrawPnl => {
-            parse_withdraw_pnl_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_withdraw_pnl_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
     }
 }
@@ -92,7 +92,7 @@ fn parse_swap_base_in_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -102,7 +102,7 @@ fn parse_swap_base_in_instruction(
     let minimum_amount_out = read_u64_le(data, offset)?;
 
     let amm = get_account(accounts, 1)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, amm);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, amm);
 
     Some(DexEvent::RaydiumAmmV4Swap(RaydiumAmmV4SwapEvent {
         metadata,
@@ -138,7 +138,7 @@ fn parse_swap_base_out_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -148,7 +148,7 @@ fn parse_swap_base_out_instruction(
     let amount_out = read_u64_le(data, offset)?;
 
     let amm = get_account(accounts, 1)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, amm);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, amm);
 
     Some(DexEvent::RaydiumAmmV4Swap(RaydiumAmmV4SwapEvent {
         metadata,
@@ -184,7 +184,7 @@ fn parse_deposit_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -197,7 +197,7 @@ fn parse_deposit_instruction(
     let base_side = read_u64_le(data, offset)?;
 
     let amm = get_account(accounts, 1)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, amm);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, amm);
 
     Some(DexEvent::RaydiumAmmV4Deposit(RaydiumAmmV4DepositEvent {
         metadata,
@@ -228,12 +228,12 @@ fn parse_withdraw_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let amount = read_u64_le(data, 0)?;
 
     let amm = get_account(accounts, 1)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, amm);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, amm);
 
     Some(DexEvent::RaydiumAmmV4Withdraw(RaydiumAmmV4WithdrawEvent {
         metadata,
@@ -270,7 +270,7 @@ fn parse_initialize2_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -286,7 +286,7 @@ fn parse_initialize2_instruction(
     let init_coin_amount = read_u64_le(data, offset)?;
 
     let amm = get_account(accounts, 4)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, amm);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, amm);
 
     Some(DexEvent::RaydiumAmmV4Initialize2(RaydiumAmmV4Initialize2Event {
         metadata,
@@ -325,10 +325,10 @@ fn parse_withdraw_pnl_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let amm = get_account(accounts, 1)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, amm);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, amm);
 
     Some(DexEvent::RaydiumAmmV4WithdrawPnl(RaydiumAmmV4WithdrawPnlEvent {
         metadata,

@@ -69,7 +69,7 @@ pub fn parse_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     if instruction_data.len() < 8 {
         return None;
@@ -81,16 +81,16 @@ pub fn parse_instruction(
 
     match instruction_type {
         MeteoraPoolsInstruction::Swap => {
-            parse_swap_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_swap_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         MeteoraPoolsInstruction::AddLiquidity => {
-            parse_add_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_add_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         MeteoraPoolsInstruction::RemoveLiquidity => {
-            parse_remove_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_remove_liquidity_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         MeteoraPoolsInstruction::CreatePool => {
-            parse_create_pool_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_create_pool_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         _ => None, // 其他指令暂不解析
     }
@@ -103,7 +103,7 @@ fn parse_swap_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -113,7 +113,7 @@ fn parse_swap_instruction(
     let minimum_out_amount = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraPoolsSwap(MeteoraPoolsSwapEvent {
         metadata,
@@ -132,7 +132,7 @@ fn parse_add_liquidity_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -145,7 +145,7 @@ fn parse_add_liquidity_instruction(
     let maximum_token_b_amount = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraPoolsAddLiquidity(MeteoraPoolsAddLiquidityEvent {
         metadata,
@@ -162,7 +162,7 @@ fn parse_remove_liquidity_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -175,7 +175,7 @@ fn parse_remove_liquidity_instruction(
     let minimum_token_b_amount = read_u64_le(data, offset)?;
 
     let pool = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraPoolsRemoveLiquidity(MeteoraPoolsRemoveLiquidityEvent {
         metadata,
@@ -192,7 +192,7 @@ fn parse_create_pool_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -220,7 +220,7 @@ fn parse_create_pool_instruction(
     let token_a_mint = get_account(accounts, 8)?;
     let token_b_mint = get_account(accounts, 9)?;
     let lp_mint = get_account(accounts, 4)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, pool);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, pool);
 
     Some(DexEvent::MeteoraPoolsPoolCreated(MeteoraPoolsPoolCreatedEvent {
         metadata,

@@ -13,7 +13,7 @@ use solana_sdk::{pubkey::Pubkey, signature::Signature};
 /// - logs: 交易日志
 /// - signature: 交易签名
 /// - slot: 区块高度
-/// - block_time: 区块时间
+/// - block_time_us: 区块时间
 /// - program_id: 程序 ID
 pub fn parse_transaction_events(
     instruction_data: &[u8],
@@ -22,7 +22,7 @@ pub fn parse_transaction_events(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     program_id: &Pubkey,
 ) -> Vec<DexEvent> {
     let mut instruction_events = Vec::new();
@@ -30,14 +30,14 @@ pub fn parse_transaction_events(
 
     // 1. 解析指令事件
     if let Some(instr_event) = crate::instr::parse_instruction_unified(
-        instruction_data, accounts, signature, slot, tx_index, block_time, program_id
+        instruction_data, accounts, signature, slot, tx_index, block_time_us, program_id
     ) {
         instruction_events.push(instr_event);
     }
 
     // 2. 解析日志事件
     for log in logs {
-        if let Some(log_event) = crate::logs::parse_log_unified(log, signature, slot, block_time) {
+        if let Some(log_event) = crate::logs::parse_log_unified(log, signature, slot, block_time_us) {
             log_events.push(log_event);
         }
     }
@@ -52,12 +52,12 @@ pub fn parse_logs_only(
     logs: &[String],
     signature: Signature,
     slot: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Vec<DexEvent> {
     let mut events = Vec::new();
 
     for log in logs {
-        if let Some(event) = crate::logs::parse_log_unified(log, signature, slot, block_time) {
+        if let Some(event) = crate::logs::parse_log_unified(log, signature, slot, block_time_us) {
             events.push(event);
         }
     }
@@ -78,12 +78,12 @@ pub fn parse_transaction_with_listener<T: EventListener>(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     program_id: &Pubkey,
     listener: &T,
 ) {
     let events = parse_transaction_events(
-        instruction_data, accounts, logs, signature, slot, tx_index, block_time, program_id
+        instruction_data, accounts, logs, signature, slot, tx_index, block_time_us, program_id
     );
 
     for event in &events {
@@ -102,7 +102,7 @@ pub fn parse_transaction_events_streaming<F>(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     program_id: &Pubkey,
     mut callback: F,
 ) where
@@ -110,14 +110,14 @@ pub fn parse_transaction_events_streaming<F>(
 {
     // 1. 先解析指令事件（如果有） - 立即回调
     if let Some(instr_event) = crate::instr::parse_instruction_unified(
-        instruction_data, accounts, signature, slot, tx_index, block_time, program_id
+        instruction_data, accounts, signature, slot, tx_index, block_time_us, program_id
     ) {
         callback(instr_event);  // 立即回调指令事件
     }
 
     // 2. 逐个解析日志事件 - 每个事件立即回调
     for log in logs {
-        if let Some(log_event) = crate::logs::parse_log_unified(log, signature, slot, block_time) {
+        if let Some(log_event) = crate::logs::parse_log_unified(log, signature, slot, block_time_us) {
             callback(log_event);  // 立即回调日志事件，不等待其他日志
         }
     }
@@ -131,13 +131,13 @@ pub fn parse_logs_streaming<F>(
     logs: &[String],
     signature: Signature,
     slot: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     mut callback: F,
 ) where
     F: FnMut(DexEvent)
 {
     for log in logs {
-        if let Some(event) = crate::logs::parse_log_unified(log, signature, slot, block_time) {
+        if let Some(event) = crate::logs::parse_log_unified(log, signature, slot, block_time_us) {
             callback(event);
         }
     }
@@ -156,7 +156,7 @@ pub fn parse_transaction_with_streaming_listener<T: StreamingEventListener>(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     program_id: &Pubkey,
     listener: &mut T,
 ) {
@@ -167,7 +167,7 @@ pub fn parse_transaction_with_streaming_listener<T: StreamingEventListener>(
         signature,
         slot,
         tx_index,
-        block_time,
+        block_time_us,
         program_id,
         |event| listener.on_dex_event_streaming(event)
     );

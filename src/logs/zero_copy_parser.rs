@@ -14,7 +14,7 @@ pub fn parse_pumpfun_trade(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     grpc_recv_us: i64,
     is_created_buy: bool,
 ) -> Option<DexEvent> {
@@ -133,7 +133,7 @@ pub fn parse_pumpfun_trade(
         signature,
         slot,
         tx_index,
-        block_time_us: block_time.unwrap_or(0) * 1_000_000,
+        block_time_us: block_time_us.unwrap_or(0),
         grpc_recv_us,
     };
 
@@ -160,7 +160,7 @@ pub fn parse_pumpfun_trade(
         total_unclaimed_tokens,
         total_claimed_tokens,
         current_sol_volume,
-        last_update_timestamp: timestamp,
+        last_update_timestamp: 0,
         // 暂时注释，以后会用，AI禁止改动
         // bonding_curve: Pubkey::default(),
         // associated_bonding_curve: Pubkey::default(),

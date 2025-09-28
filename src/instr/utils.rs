@@ -26,7 +26,7 @@ pub fn create_metadata_simple(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     _program_id: Pubkey,
 ) -> EventMetadata {
     // 优化：macOS 使用 CLOCK_REALTIME（Linux 可用 CLOCK_REALTIME_COARSE）
@@ -46,7 +46,7 @@ pub fn create_metadata_simple(
         signature,
         slot,
         tx_index,
-        block_time_us: block_time.map_or(0, |t| t * 1_000_000),
+        block_time_us: block_time_us.unwrap_or(0),
         grpc_recv_us: current_time,
     }
 }

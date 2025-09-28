@@ -42,7 +42,7 @@ pub fn parse_instruction_unified(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
     program_id: &Pubkey,
 ) -> Option<DexEvent> {
     // 快速检查指令数据长度，避免无效解析
@@ -54,52 +54,52 @@ pub fn parse_instruction_unified(
 
     // PumpFun (最常用)
     if *program_id == PUMPFUN_PROGRAM_ID {
-        return parse_pumpfun_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_pumpfun_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Raydium AMM (高频)
     if *program_id == RAYDIUM_AMM_V4_PROGRAM_ID {
-        return parse_raydium_amm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_raydium_amm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Raydium CLMM
     if *program_id == RAYDIUM_CLMM_PROGRAM_ID {
-        return parse_raydium_clmm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_raydium_clmm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Orca Whirlpool
     if *program_id == ORCA_WHIRLPOOL_PROGRAM_ID {
-        return parse_orca_whirlpool_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_orca_whirlpool_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Raydium CPMM
     if *program_id == RAYDIUM_CPMM_PROGRAM_ID {
-        return parse_raydium_cpmm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_raydium_cpmm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Meteora DAMM
     if *program_id == METEORA_DAMM_V2_PROGRAM_ID {
-        return parse_meteora_damm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_meteora_damm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Meteora DLMM
     if *program_id == METEORA_DLMM_PROGRAM_ID {
-        return parse_meteora_dlmm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_meteora_dlmm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Raydium Launchpad
     if *program_id == BONK_PROGRAM_ID {
-        return parse_raydium_launchpad_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_raydium_launchpad_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Pump AMM
     if *program_id == PUMPSWAP_PROGRAM_ID {
-        return parse_pump_amm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_pump_amm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     // Meteora AMM
     if *program_id == METEORA_POOLS_PROGRAM_ID {
-        return parse_meteora_amm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time);
+        return parse_meteora_amm_instruction(instruction_data, accounts, signature, slot, tx_index, block_time_us);
     }
 
     None

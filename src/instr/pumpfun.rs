@@ -24,7 +24,7 @@ pub fn parse_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     if instruction_data.len() < 8 {
         return None;
@@ -35,13 +35,13 @@ pub fn parse_instruction(
 
     match discriminator {
         discriminators::CREATE => {
-            parse_create_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_create_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::BUY => {
-            parse_buy_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_buy_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         discriminators::SELL => {
-            parse_sell_instruction(data, accounts, signature, slot, tx_index, block_time)
+            parse_sell_instruction(data, accounts, signature, slot, tx_index, block_time_us)
         },
         _ => None,
     }
@@ -54,10 +54,10 @@ fn parse_create_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, mint);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint);
 
     Some(DexEvent::PumpFunCreate(PumpFunCreateTokenEvent {
         metadata,
@@ -68,7 +68,7 @@ fn parse_create_instruction(
         bonding_curve: get_account(accounts, 1).unwrap_or_default(),
         user: get_account(accounts, 2).unwrap_or_default(),
         creator: Pubkey::default(), // 将从日志填充
-        timestamp: block_time.unwrap_or(0),
+        timestamp: 0,
         virtual_token_reserves: 1_073_000_000_000_000,
         virtual_sol_reserves: 30_000_000_000,
         real_token_reserves: 0, // 将从日志填充
@@ -83,7 +83,7 @@ fn parse_buy_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -93,7 +93,7 @@ fn parse_buy_instruction(
     let max_sol_cost = read_u64_le(data, offset)?;
 
     let mint = get_account(accounts, 2)?; // mint is at index 2
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, mint);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint);
 
     Some(DexEvent::PumpFunTrade(PumpFunTradeEvent {
         metadata,
@@ -105,7 +105,7 @@ fn parse_buy_instruction(
         is_buy: true,
         is_created_buy: false, // 将在上层设置
         user: Pubkey::default(), // 将从日志填充
-        timestamp: block_time.unwrap_or(0),
+        timestamp: 0,
         virtual_sol_reserves: 0, // 将从日志填充
         virtual_token_reserves: 0, // 将从日志填充
         real_sol_reserves: 0, // 将从日志填充
@@ -120,7 +120,7 @@ fn parse_buy_instruction(
         total_unclaimed_tokens: 0, // 将从日志填充
         total_claimed_tokens: 0, // 将从日志填充
         current_sol_volume: 0, // 将从日志填充
-        last_update_timestamp: block_time.unwrap_or(0), // 将从日志填充
+        last_update_timestamp: 0, // 将从日志填充
 
         // 暂时注释，以后会用，AI禁止改动
         // 指令账户字段 - 从account_filler填充
@@ -138,7 +138,7 @@ fn parse_sell_instruction(
     signature: Signature,
     slot: u64,
     tx_index: u64,
-    block_time: Option<i64>,
+    block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
     let mut offset = 0;
 
@@ -148,7 +148,7 @@ fn parse_sell_instruction(
     let min_sol_output = read_u64_le(data, offset)?;
 
     let mint = get_account(accounts, 2)?; // mint is at index 2
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time, mint);
+    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint);
 
     Some(DexEvent::PumpFunTrade(PumpFunTradeEvent {
         metadata,
@@ -160,7 +160,7 @@ fn parse_sell_instruction(
         is_buy: false,
         is_created_buy: false, // 将在上层设置
         user: Pubkey::default(), // 将从日志填充
-        timestamp: block_time.unwrap_or(0),
+        timestamp: 0,
         virtual_sol_reserves: 0, // 将从日志填充
         virtual_token_reserves: 0, // 将从日志填充
         real_sol_reserves: 0, // 将从日志填充
@@ -175,7 +175,7 @@ fn parse_sell_instruction(
         total_unclaimed_tokens: 0, // 将从日志填充
         total_claimed_tokens: 0, // 将从日志填充
         current_sol_volume: 0, // 将从日志填充
-        last_update_timestamp: block_time.unwrap_or(0), // 将从日志填充
+        last_update_timestamp: 0, // 将从日志填充
 
         // 暂时注释，以后会用，AI禁止改动
         // 指令账户字段 - 从account_filler填充
