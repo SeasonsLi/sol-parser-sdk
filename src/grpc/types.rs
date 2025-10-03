@@ -124,11 +124,7 @@ pub struct AccountFilter {
 
 impl AccountFilter {
     pub fn new() -> Self {
-        Self {
-            account: Vec::new(),
-            owner: Vec::new(),
-            filters: Vec::new(),
-        }
+        Self { account: Vec::new(), owner: Vec::new(), filters: Vec::new() }
     }
 
     pub fn add_account(mut self, account: impl Into<String>) -> Self {
@@ -148,11 +144,7 @@ impl AccountFilter {
 
     /// 从程序ID列表创建所有者过滤器
     pub fn from_program_owners(program_ids: Vec<String>) -> Self {
-        Self {
-            account: Vec::new(),
-            owner: program_ids,
-            filters: Vec::new(),
-        }
+        Self { account: Vec::new(), owner: program_ids, filters: Vec::new() }
     }
 }
 
@@ -204,12 +196,10 @@ pub enum EventType {
     PumpSwapBuy,
     PumpSwapSell,
     PumpSwapCreatePool,
-    PumpSwapPoolCreated,
-    PumpSwapTrade,
     PumpSwapLiquidityAdded,
     PumpSwapLiquidityRemoved,
-    PumpSwapPoolUpdated,
-    PumpSwapFeesClaimed,
+    // PumpSwapPoolUpdated,
+    // PumpSwapFeesClaimed,
 
     // Raydium CPMM events
     RaydiumCpmmSwap,
@@ -274,17 +264,11 @@ pub struct EventTypeFilter {
 
 impl EventTypeFilter {
     pub fn include_only(types: Vec<EventType>) -> Self {
-        Self {
-            include_only: Some(types),
-            exclude_types: None,
-        }
+        Self { include_only: Some(types), exclude_types: None }
     }
 
     pub fn exclude_types(types: Vec<EventType>) -> Self {
-        Self {
-            include_only: None,
-            exclude_types: Some(types),
-        }
+        Self { include_only: None, exclude_types: Some(types) }
     }
 
     pub fn should_include(&self, event_type: EventType) -> bool {
@@ -302,15 +286,27 @@ impl EventTypeFilter {
     #[inline]
     pub fn includes_pumpfun(&self) -> bool {
         if let Some(ref include_only) = self.include_only {
-            return include_only.iter().any(|t| matches!(t,
-                EventType::PumpFunTrade | EventType::PumpFunCreate |
-                EventType::PumpFunComplete | EventType::PumpFunMigrate));
+            return include_only.iter().any(|t| {
+                matches!(
+                    t,
+                    EventType::PumpFunTrade
+                        | EventType::PumpFunCreate
+                        | EventType::PumpFunComplete
+                        | EventType::PumpFunMigrate
+                )
+            });
         }
 
         if let Some(ref exclude_types) = self.exclude_types {
-            return !exclude_types.iter().any(|t| matches!(t,
-                EventType::PumpFunTrade | EventType::PumpFunCreate |
-                EventType::PumpFunComplete | EventType::PumpFunMigrate));
+            return !exclude_types.iter().any(|t| {
+                matches!(
+                    t,
+                    EventType::PumpFunTrade
+                        | EventType::PumpFunCreate
+                        | EventType::PumpFunComplete
+                        | EventType::PumpFunMigrate
+                )
+            });
         }
 
         true
@@ -325,10 +321,7 @@ pub struct SlotFilter {
 
 impl SlotFilter {
     pub fn new() -> Self {
-        Self {
-            min_slot: None,
-            max_slot: None,
-        }
+        Self { min_slot: None, max_slot: None }
     }
 
     pub fn min_slot(mut self, slot: u64) -> Self {

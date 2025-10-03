@@ -2,19 +2,22 @@
 //!
 //! 使用 match discriminator 模式解析 PumpFun 事件
 
-use solana_sdk::{pubkey::Pubkey, signature::Signature};
-use crate::core::events::*;
 use super::utils::*;
+use crate::core::events::*;
 use memchr::memmem;
 use once_cell::sync::Lazy;
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
 
 /// 文本日志关键词查找器（SIMD 优化）
-static CREATE_EVENT_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"CreateEvent"));
-static TRADE_EVENT_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"TradeEvent"));
-static COMPLETE_EVENT_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"CompleteEvent"));
-static MIGRATE_EVENT_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"MigrateEvent"));
-static GRADUATION_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"graduation"));
-static SWAP_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"swap"));
+// static CREATE_EVENT_FINDER: Lazy<memmem::Finder> =
+//     Lazy::new(|| memmem::Finder::new(b"CreateEvent"));
+// static TRADE_EVENT_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"TradeEvent"));
+// static COMPLETE_EVENT_FINDER: Lazy<memmem::Finder> =
+//     Lazy::new(|| memmem::Finder::new(b"CompleteEvent"));
+// static MIGRATE_EVENT_FINDER: Lazy<memmem::Finder> =
+//     Lazy::new(|| memmem::Finder::new(b"MigrateEvent"));
+// static GRADUATION_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"graduation"));
+// static SWAP_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"swap"));
 
 /// PumpFun discriminator 常量
 pub mod discriminators {
@@ -22,12 +25,6 @@ pub mod discriminators {
     pub const CREATE_EVENT: [u8; 8] = [27, 114, 169, 77, 222, 235, 99, 118];
     pub const TRADE_EVENT: [u8; 8] = [189, 219, 127, 211, 78, 230, 97, 238];
     pub const MIGRATE_EVENT: [u8; 8] = [189, 233, 93, 185, 92, 148, 234, 148];
-
-    // 指令 discriminators (8 字节)
-    pub const CREATE_TOKEN_IX: [u8; 8] = [24, 30, 200, 40, 5, 28, 7, 119];
-    pub const BUY_IX: [u8; 8] = [102, 6, 61, 18, 1, 218, 235, 234];
-    pub const SELL_IX: [u8; 8] = [51, 230, 133, 164, 1, 127, 131, 173];
-    pub const MIGRATE_IX: [u8; 8] = [155, 234, 231, 146, 236, 158, 162, 30];
 }
 
 /// PumpFun 程序 ID
@@ -35,9 +32,9 @@ pub const PROGRAM_ID: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 
 /// 检查日志是否来自 PumpFun 程序
 pub fn is_pumpfun_log(log: &str) -> bool {
-    log.contains(&format!("Program {} invoke", PROGRAM_ID)) ||
-    log.contains(&format!("Program {} success", PROGRAM_ID)) ||
-    log.contains("Program data:") // PumpFun 事件日志
+    log.contains(&format!("Program {} invoke", PROGRAM_ID))
+        || log.contains(&format!("Program {} success", PROGRAM_ID))
+        || log.contains("Program data:") // PumpFun 事件日志
 }
 
 /// 主要的 PumpFun 日志解析函数
@@ -51,17 +48,26 @@ pub fn parse_log(
     grpc_recv_us: i64,
     is_created_buy: bool,
 ) -> Option<DexEvent> {
-    if !is_pumpfun_log(log) {
-        return None;
-    }
+    // if !is_pumpfun_log(log) {
+    //     return None;
+    // }
 
     // 尝试结构化解析
-    if let Some(event) = parse_structured_log(log, signature, slot, tx_index, block_time_us, grpc_recv_us, is_created_buy) {
+    if let Some(event) = parse_structured_log(
+        log,
+        signature,
+        slot,
+        tx_index,
+        block_time_us,
+        grpc_recv_us,
+        is_created_buy,
+    ) {
         return Some(event);
     }
 
+    None
     // 回退到文本解析
-    parse_text_log(log, signature, slot, tx_index, block_time_us, grpc_recv_us, is_created_buy)
+    // parse_text_log(log, signature, slot, tx_index, block_time_us, grpc_recv_us, is_created_buy)
 }
 
 /// 快速路径：只检查 discriminator，避免完整解码（用于事件类型过滤）
@@ -108,13 +114,19 @@ fn parse_structured_log(
     match discriminator {
         discriminators::CREATE_EVENT => {
             parse_create_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
-        discriminators::TRADE_EVENT => {
-            parse_trade_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us, is_created_buy)
-        },
+        }
+        discriminators::TRADE_EVENT => parse_trade_event(
+            data,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+            is_created_buy,
+        ),
         discriminators::MIGRATE_EVENT => {
             parse_migrate_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
+        }
         _ => None,
     }
 }
@@ -168,7 +180,8 @@ fn parse_create_event(
 
     let token_total_supply = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
+    let metadata =
+        create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
 
     Some(DexEvent::PumpFunCreate(PumpFunCreateTokenEvent {
         metadata,
@@ -259,7 +272,8 @@ fn parse_trade_event(
 
     let current_sol_volume = read_u64_le(data, offset).unwrap_or(0);
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
+    let metadata =
+        create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
 
     Some(DexEvent::PumpFunTrade(PumpFunTradeEvent {
         metadata,
@@ -288,38 +302,6 @@ fn parse_trade_event(
         current_sol_volume,
 
         ..Default::default()
-    }))
-}
-
-/// 解析完成事件
-fn parse_complete_event(
-    data: &[u8],
-    signature: Signature,
-    slot: u64,
-    tx_index: u64,
-    block_time_us: Option<i64>,
-    grpc_recv_us: i64,
-) -> Option<DexEvent> {
-    let mut offset = 0;
-
-    let user = read_pubkey(data, offset)?;
-    offset += 32;
-
-    let mint = read_pubkey(data, offset)?;
-    offset += 32;
-
-    let bonding_curve = read_pubkey(data, offset)?;
-
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
-
-    let timestamp = read_i64_le(data, offset)?;
-
-    Some(DexEvent::PumpFunComplete(PumpFunCompleteTokenEvent {
-        metadata,
-        user,
-        mint,
-        bonding_curve,
-        timestamp,
     }))
 }
 
@@ -357,7 +339,8 @@ fn parse_migrate_event(
 
     let pool = read_pubkey(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
+    let metadata =
+        create_metadata_simple(signature, slot, tx_index, block_time_us, mint, grpc_recv_us);
 
     Some(DexEvent::PumpFunMigrate(PumpFunMigrateEvent {
         metadata,
@@ -396,29 +379,33 @@ fn parse_text_log(
     grpc_recv_us: i64,
     is_created_buy: bool,
 ) -> Option<DexEvent> {
-    use super::utils::text_parser::*;
+    // use super::utils::text_parser::*;
 
-    let log_bytes = log.as_bytes();
+    // let log_bytes = log.as_bytes();
 
-    if CREATE_EVENT_FINDER.find(log_bytes).is_some() {
-        return parse_create_from_text(tx_index, log, signature, slot, block_time_us, grpc_recv_us);
-    }
+    // if CREATE_EVENT_FINDER.find(log_bytes).is_some() {
+    //     return parse_create_from_text(tx_index, log, signature, slot, block_time_us, grpc_recv_us);
+    // }
 
-    if TRADE_EVENT_FINDER.find(log_bytes).is_some() || SWAP_FINDER.find(log_bytes).is_some() {
-        let mut event = parse_trade_from_text(tx_index, log, signature, slot, block_time_us, grpc_recv_us)?;
-        if let DexEvent::PumpFunTrade(ref mut trade) = event {
-            trade.is_created_buy = is_created_buy;
-        }
-        return Some(event);
-    }
+    // if TRADE_EVENT_FINDER.find(log_bytes).is_some() || SWAP_FINDER.find(log_bytes).is_some() {
+    //     let mut event =
+    //         parse_trade_from_text(tx_index, log, signature, slot, block_time_us, grpc_recv_us)?;
+    //     if let DexEvent::PumpFunTrade(ref mut trade) = event {
+    //         trade.is_created_buy = is_created_buy;
+    //     }
+    //     return Some(event);
+    // }
 
-    if COMPLETE_EVENT_FINDER.find(log_bytes).is_some() || GRADUATION_FINDER.find(log_bytes).is_some() {
-        return parse_complete_from_text(tx_index, log, signature, slot, block_time_us, grpc_recv_us);
-    }
-
-    if MIGRATE_EVENT_FINDER.find(log_bytes).is_some() {
-        return parse_migrate_from_text(tx_index, log, signature, slot, block_time_us, grpc_recv_us);
-    }
+    // if MIGRATE_EVENT_FINDER.find(log_bytes).is_some() {
+    //     return parse_migrate_from_text(
+    //         tx_index,
+    //         log,
+    //         signature,
+    //         slot,
+    //         block_time_us,
+    //         grpc_recv_us,
+    //     );
+    // }
 
     None
 }
@@ -434,7 +421,14 @@ fn parse_create_from_text(
 ) -> Option<DexEvent> {
     use super::utils::text_parser::*;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, Pubkey::default(), grpc_recv_us);
+    let metadata = create_metadata_simple(
+        signature,
+        slot,
+        tx_index,
+        block_time_us,
+        Pubkey::default(),
+        grpc_recv_us,
+    );
 
     Some(DexEvent::PumpFunCreate(PumpFunCreateTokenEvent {
         metadata,
@@ -464,7 +458,14 @@ fn parse_trade_from_text(
 ) -> Option<DexEvent> {
     use super::utils::text_parser::*;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, Pubkey::default(), grpc_recv_us);
+    let metadata = create_metadata_simple(
+        signature,
+        slot,
+        tx_index,
+        block_time_us,
+        Pubkey::default(),
+        grpc_recv_us,
+    );
     let is_buy = detect_trade_type(log).unwrap_or(true);
 
     Some(DexEvent::PumpFunTrade(PumpFunTradeEvent {
@@ -475,7 +476,7 @@ fn parse_trade_from_text(
         sol_amount: extract_number_from_text(log, "sol").unwrap_or(1_000_000_000),
         token_amount: extract_number_from_text(log, "token").unwrap_or(1_000_000_000),
         is_buy,
-        is_created_buy: false,  // 默认为 false，由上层设置
+        is_created_buy: false, // 默认为 false，由上层设置
         user: Pubkey::default(),
         timestamp: 0, // TODO
         virtual_sol_reserves: 30_000_000_000,
@@ -498,26 +499,6 @@ fn parse_trade_from_text(
     }))
 }
 
-/// 从文本解析完成事件
-fn parse_complete_from_text(
-    tx_index: u64,
-    log: &str,
-    signature: Signature,
-    slot: u64,
-    block_time_us: Option<i64>,
-    grpc_recv_us: i64,
-) -> Option<DexEvent> {
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, Pubkey::default(), grpc_recv_us);
-
-    Some(DexEvent::PumpFunComplete(PumpFunCompleteTokenEvent {
-        metadata,
-        user: Pubkey::default(),
-        mint: Pubkey::default(),
-        bonding_curve: Pubkey::default(),
-        timestamp: 0, // TODO
-    }))
-}
-
 /// 从文本解析迁移事件
 fn parse_migrate_from_text(
     tx_index: u64,
@@ -529,7 +510,14 @@ fn parse_migrate_from_text(
 ) -> Option<DexEvent> {
     use super::utils::text_parser::*;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, Pubkey::default(), grpc_recv_us);
+    let metadata = create_metadata_simple(
+        signature,
+        slot,
+        tx_index,
+        block_time_us,
+        Pubkey::default(),
+        grpc_recv_us,
+    );
 
     Some(DexEvent::PumpFunMigrate(PumpFunMigrateEvent {
         metadata,

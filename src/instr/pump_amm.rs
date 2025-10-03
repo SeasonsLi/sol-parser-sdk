@@ -2,10 +2,10 @@
 //!
 //! 使用 match discriminator 模式解析 PumpSwap 指令
 
-use solana_sdk::{pubkey::Pubkey, signature::Signature};
-use crate::core::events::*;
-use super::utils::*;
 use super::program_ids;
+use super::utils::*;
+use crate::core::events::*;
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
 
 /// PumpSwap discriminator 常量
 pub mod discriminators {
@@ -36,13 +36,13 @@ pub fn parse_instruction(
     match discriminator {
         discriminators::BUY => {
             parse_buy_instruction(data, accounts, signature, slot, tx_index, block_time_us)
-        },
+        }
         discriminators::SELL => {
             parse_sell_instruction(data, accounts, signature, slot, tx_index, block_time_us)
-        },
+        }
         discriminators::CREATE_POOL => {
             parse_create_pool_instruction(data, accounts, signature, slot, tx_index, block_time_us)
-        },
+        }
         _ => None,
     }
 }
@@ -56,26 +56,27 @@ fn parse_buy_instruction(
     tx_index: u64,
     block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    None
+    // let mut offset = 0;
 
-    let sol_amount = read_u64_le(data, offset)?;
-    offset += 8;
+    // let sol_amount = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let slippage = read_u16_le(data, offset)?;
+    // let slippage = read_u16_le(data, offset)?;
 
-    let token_mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
+    // let token_mint = get_account(accounts, 0)?;
+    // let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
 
-    Some(DexEvent::PumpSwapBuy(PumpSwapBuyEvent {
-        metadata,
-        pool_id: get_account(accounts, 1).unwrap_or_default(),
-        user: get_account(accounts, 2).unwrap_or_default(),
-        token_mint,
-        sol_amount,
-        token_amount: 0, // 将从日志填充
-        price: 0, // 将从日志计算
-        slippage,
-    }))
+    // Some(DexEvent::PumpSwapBuy(PumpSwapBuyEvent {
+    //     metadata,
+    //     pool_id: get_account(accounts, 1).unwrap_or_default(),
+    //     user: get_account(accounts, 2).unwrap_or_default(),
+    //     token_mint,
+    //     sol_amount,
+    //     token_amount: 0, // 将从日志填充
+    //     price: 0, // 将从日志计算
+    //     slippage,
+    // }))
 }
 
 /// 解析卖出指令
@@ -87,26 +88,27 @@ fn parse_sell_instruction(
     tx_index: u64,
     block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    None
+    // let mut offset = 0;
 
-    let token_amount = read_u64_le(data, offset)?;
-    offset += 8;
+    // let token_amount = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let slippage = read_u16_le(data, offset)?;
+    // let slippage = read_u16_le(data, offset)?;
 
-    let token_mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
+    // let token_mint = get_account(accounts, 0)?;
+    // let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
 
-    Some(DexEvent::PumpSwapSell(PumpSwapSellEvent {
-        metadata,
-        pool_id: get_account(accounts, 1).unwrap_or_default(),
-        user: get_account(accounts, 2).unwrap_or_default(),
-        token_mint,
-        token_amount,
-        sol_amount: 0, // 将从日志填充
-        price: 0, // 将从日志计算
-        slippage,
-    }))
+    // Some(DexEvent::PumpSwapSell(PumpSwapSellEvent {
+    //     metadata,
+    //     pool_id: get_account(accounts, 1).unwrap_or_default(),
+    //     user: get_account(accounts, 2).unwrap_or_default(),
+    //     token_mint,
+    //     token_amount,
+    //     sol_amount: 0, // 将从日志填充
+    //     price: 0,      // 将从日志计算
+    //     slippage,
+    // }))
 }
 
 /// 解析池创建指令
@@ -118,23 +120,24 @@ fn parse_create_pool_instruction(
     tx_index: u64,
     block_time_us: Option<i64>,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    None
+    // let mut offset = 0;
 
-    let initial_sol_reserve = read_u64_le(data, offset)?;
-    offset += 8;
+    // let initial_sol_reserve = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let initial_token_reserve = read_u64_le(data, offset)?;
+    // let initial_token_reserve = read_u64_le(data, offset)?;
 
-    let token_mint = get_account(accounts, 0)?;
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
+    // let token_mint = get_account(accounts, 0)?;
+    // let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, token_mint);
 
-    Some(DexEvent::PumpSwapCreatePool(PumpSwapCreatePoolEvent {
-        metadata,
-        pool_id: get_account(accounts, 2).unwrap_or_default(),
-        creator: get_account(accounts, 1).unwrap_or_default(),
-        token_mint,
-        initial_sol_amount: initial_sol_reserve,
-        initial_token_amount: initial_token_reserve,
-        fee_rate: 100, // 默认费率
-    }))
+    // Some(DexEvent::PumpSwapCreatePool(PumpSwapCreatePoolEvent {
+    //     metadata,
+    //     pool_id: get_account(accounts, 2).unwrap_or_default(),
+    //     creator: get_account(accounts, 1).unwrap_or_default(),
+    //     token_mint,
+    //     initial_sol_amount: initial_sol_reserve,
+    //     initial_token_amount: initial_token_reserve,
+    //     fee_rate: 100, // 默认费率
+    // }))
 }

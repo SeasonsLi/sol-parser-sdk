@@ -115,16 +115,6 @@ pub struct PumpFunTradeEvent {
     pub creator_vault: Pubkey, // sell - 8 / buy - 9
 }
 
-/// PumpFun Complete Token Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PumpFunCompleteTokenEvent {
-    pub metadata: EventMetadata,
-    pub user: Pubkey,
-    pub mint: Pubkey,
-    pub bonding_curve: Pubkey,
-    pub timestamp: i64,
-}
-
 /// PumpFun Migrate Event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PumpFunMigrateEvent {
@@ -173,41 +163,112 @@ pub struct PumpFunCreateTokenEvent {
 }
 
 /// PumpSwap Buy Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapBuyEvent {
     pub metadata: EventMetadata,
-    pub pool_id: Pubkey,
+    pub timestamp: i64,
+    pub base_amount_out: u64,
+    pub max_quote_amount_in: u64,
+    pub user_base_token_reserves: u64,
+    pub user_quote_token_reserves: u64,
+    pub pool_base_token_reserves: u64,
+    pub pool_quote_token_reserves: u64,
+    pub quote_amount_in: u64,
+    pub lp_fee_basis_points: u64,
+    pub lp_fee: u64,
+    pub protocol_fee_basis_points: u64,
+    pub protocol_fee: u64,
+    pub quote_amount_in_with_lp_fee: u64,
+    pub user_quote_amount_in: u64,
+    pub pool: Pubkey,
     pub user: Pubkey,
-    pub token_mint: Pubkey,
-    pub sol_amount: u64,
-    pub token_amount: u64,
-    pub price: u64,
-    pub slippage: u16,
+    pub user_base_token_account: Pubkey,
+    pub user_quote_token_account: Pubkey,
+    pub protocol_fee_recipient: Pubkey,
+    pub protocol_fee_recipient_token_account: Pubkey,
+    pub coin_creator: Pubkey,
+    pub coin_creator_fee_basis_points: u64,
+    pub coin_creator_fee: u64,
+    pub track_volume: bool,
+    pub total_unclaimed_tokens: u64,
+    pub total_claimed_tokens: u64,
+    pub current_sol_volume: u64,
+    pub last_update_timestamp: i64,
+
+    // === 额外账户信息 ===
+    pub base_mint: Pubkey,
+    pub quote_mint: Pubkey,
+    pub pool_base_token_account: Pubkey,
+    pub pool_quote_token_account: Pubkey,
+    pub coin_creator_vault_ata: Pubkey,
+    pub coin_creator_vault_authority: Pubkey,
+    pub base_token_program: Pubkey,
+    pub quote_token_program: Pubkey,
 }
 
 /// PumpSwap Sell Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapSellEvent {
     pub metadata: EventMetadata,
-    pub pool_id: Pubkey,
+    pub timestamp: i64,
+    pub base_amount_in: u64,
+    pub min_quote_amount_out: u64,
+    pub user_base_token_reserves: u64,
+    pub user_quote_token_reserves: u64,
+    pub pool_base_token_reserves: u64,
+    pub pool_quote_token_reserves: u64,
+    pub quote_amount_out: u64,
+    pub lp_fee_basis_points: u64,
+    pub lp_fee: u64,
+    pub protocol_fee_basis_points: u64,
+    pub protocol_fee: u64,
+    pub quote_amount_out_without_lp_fee: u64,
+    pub user_quote_amount_out: u64,
+    pub pool: Pubkey,
     pub user: Pubkey,
-    pub token_mint: Pubkey,
-    pub token_amount: u64,
-    pub sol_amount: u64,
-    pub price: u64,
-    pub slippage: u16,
+    pub user_base_token_account: Pubkey,
+    pub user_quote_token_account: Pubkey,
+    pub protocol_fee_recipient: Pubkey,
+    pub protocol_fee_recipient_token_account: Pubkey,
+    pub coin_creator: Pubkey,
+    pub coin_creator_fee_basis_points: u64,
+    pub coin_creator_fee: u64,
+
+    // === 额外账户信息 ===
+    pub base_mint: Pubkey,
+    pub quote_mint: Pubkey,
+    pub pool_base_token_account: Pubkey,
+    pub pool_quote_token_account: Pubkey,
+    pub coin_creator_vault_ata: Pubkey,
+    pub coin_creator_vault_authority: Pubkey,
+    pub base_token_program: Pubkey,
+    pub quote_token_program: Pubkey,
 }
 
 /// PumpSwap Create Pool Event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PumpSwapCreatePoolEvent {
     pub metadata: EventMetadata,
-    pub pool_id: Pubkey,
+    pub timestamp: i64,
+    pub index: u16,
     pub creator: Pubkey,
-    pub token_mint: Pubkey,
-    pub initial_sol_amount: u64,
-    pub initial_token_amount: u64,
-    pub fee_rate: u16,
+    pub base_mint: Pubkey,
+    pub quote_mint: Pubkey,
+    pub base_mint_decimals: u8,
+    pub quote_mint_decimals: u8,
+    pub base_amount_in: u64,
+    pub quote_amount_in: u64,
+    pub pool_base_amount: u64,
+    pub pool_quote_amount: u64,
+    pub minimum_liquidity: u64,
+    pub initial_liquidity: u64,
+    pub lp_token_amount_out: u64,
+    pub pool_bump: u8,
+    pub pool: Pubkey,
+    pub lp_mint: Pubkey,
+    pub user_base_token_account: Pubkey,
+    pub user_quote_token_account: Pubkey,
+    pub coin_creator: Pubkey,
 }
 
 /// PumpSwap Pool Created Event - 指令解析版本
@@ -227,58 +288,64 @@ pub struct PumpSwapPoolCreated {
 }
 
 /// PumpSwap Trade Event - 指令解析版本
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PumpSwapTrade {
-    pub metadata: EventMetadata,
-    pub pool_account: Pubkey,
-    pub user: Pubkey,
-    pub user_token_in_account: Pubkey,
-    pub user_token_out_account: Pubkey,
-    pub pool_token_in_vault: Pubkey,
-    pub pool_token_out_vault: Pubkey,
-    pub token_in_mint: Pubkey,
-    pub token_out_mint: Pubkey,
-    pub amount_in: u64,
-    pub minimum_amount_out: u64,
-    pub is_token_a_to_b: bool,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub struct PumpSwapTrade {
+//     pub metadata: EventMetadata,
+//     pub pool_account: Pubkey,
+//     pub user: Pubkey,
+//     pub user_token_in_account: Pubkey,
+//     pub user_token_out_account: Pubkey,
+//     pub pool_token_in_vault: Pubkey,
+//     pub pool_token_out_vault: Pubkey,
+//     pub token_in_mint: Pubkey,
+//     pub token_out_mint: Pubkey,
+//     pub amount_in: u64,
+//     pub minimum_amount_out: u64,
+//     pub is_token_a_to_b: bool,
+// }
 
 /// PumpSwap Liquidity Added Event - 指令解析版本
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PumpSwapLiquidityAdded {
     pub metadata: EventMetadata,
-    pub pool_account: Pubkey,
+    pub timestamp: i64,
+    pub lp_token_amount_out: u64,
+    pub max_base_amount_in: u64,
+    pub max_quote_amount_in: u64,
+    pub user_base_token_reserves: u64,
+    pub user_quote_token_reserves: u64,
+    pub pool_base_token_reserves: u64,
+    pub pool_quote_token_reserves: u64,
+    pub base_amount_in: u64,
+    pub quote_amount_in: u64,
+    pub lp_mint_supply: u64,
+    pub pool: Pubkey,
     pub user: Pubkey,
-    pub user_token_a_account: Pubkey,
-    pub user_token_b_account: Pubkey,
-    pub user_lp_token_account: Pubkey,
-    pub pool_token_a_vault: Pubkey,
-    pub pool_token_b_vault: Pubkey,
-    pub lp_mint: Pubkey,
-    pub token_a_mint: Pubkey,
-    pub token_b_mint: Pubkey,
-    pub max_token_a_amount: u64,
-    pub max_token_b_amount: u64,
-    pub min_lp_tokens: u64,
+    pub user_base_token_account: Pubkey,
+    pub user_quote_token_account: Pubkey,
+    pub user_pool_token_account: Pubkey,
 }
 
 /// PumpSwap Liquidity Removed Event - 指令解析版本
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PumpSwapLiquidityRemoved {
     pub metadata: EventMetadata,
-    pub pool_account: Pubkey,
+    pub timestamp: i64,
+    pub lp_token_amount_in: u64,
+    pub min_base_amount_out: u64,
+    pub min_quote_amount_out: u64,
+    pub user_base_token_reserves: u64,
+    pub user_quote_token_reserves: u64,
+    pub pool_base_token_reserves: u64,
+    pub pool_quote_token_reserves: u64,
+    pub base_amount_out: u64,
+    pub quote_amount_out: u64,
+    pub lp_mint_supply: u64,
+    pub pool: Pubkey,
     pub user: Pubkey,
-    pub user_token_a_account: Pubkey,
-    pub user_token_b_account: Pubkey,
-    pub user_lp_token_account: Pubkey,
-    pub pool_token_a_vault: Pubkey,
-    pub pool_token_b_vault: Pubkey,
-    pub lp_mint: Pubkey,
-    pub token_a_mint: Pubkey,
-    pub token_b_mint: Pubkey,
-    pub lp_tokens_to_burn: u64,
-    pub min_token_a_amount: u64,
-    pub min_token_b_amount: u64,
+    pub user_base_token_account: Pubkey,
+    pub user_quote_token_account: Pubkey,
+    pub user_pool_token_account: Pubkey,
 }
 
 /// PumpSwap Pool Updated Event - 指令解析版本
@@ -1334,7 +1401,6 @@ pub enum DexEvent {
     // PumpFun 事件
     PumpFunCreate(PumpFunCreateTokenEvent),
     PumpFunTrade(PumpFunTradeEvent),
-    PumpFunComplete(PumpFunCompleteTokenEvent),
     PumpFunMigrate(PumpFunMigrateEvent),
 
     // Bonk 事件
@@ -1346,12 +1412,11 @@ pub enum DexEvent {
     PumpSwapBuy(PumpSwapBuyEvent),
     PumpSwapSell(PumpSwapSellEvent),
     PumpSwapCreatePool(PumpSwapCreatePoolEvent),
-    PumpSwapPoolCreated(PumpSwapPoolCreated),
-    PumpSwapTrade(PumpSwapTrade),
+    // PumpSwapTrade(PumpSwapTrade),
     PumpSwapLiquidityAdded(PumpSwapLiquidityAdded),
     PumpSwapLiquidityRemoved(PumpSwapLiquidityRemoved),
-    PumpSwapPoolUpdated(PumpSwapPoolUpdated),
-    PumpSwapFeesClaimed(PumpSwapFeesClaimed),
+    // PumpSwapPoolUpdated(PumpSwapPoolUpdated),
+    // PumpSwapFeesClaimed(PumpSwapFeesClaimed),
 
     // Raydium CLMM 事件
     RaydiumClmmSwap(RaydiumClmmSwapEvent),
