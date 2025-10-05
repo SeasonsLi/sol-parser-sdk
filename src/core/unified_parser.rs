@@ -29,11 +29,11 @@ pub fn parse_transaction_events(
     let mut log_events = Vec::new();
 
     // 1. 解析指令事件
-    if let Some(instr_event) = crate::instr::parse_instruction_unified(
-        instruction_data, accounts, signature, slot, tx_index, block_time_us, program_id
-    ) {
-        instruction_events.push(instr_event);
-    }
+    // if let Some(instr_event) = crate::instr::parse_instruction_unified(
+    //     instruction_data, accounts, signature, slot, tx_index, block_time_us, program_id
+    // ) {
+    //     instruction_events.push(instr_event);
+    // }
 
     // 2. 解析日志事件
     for log in logs {
@@ -109,11 +109,11 @@ pub fn parse_transaction_events_streaming<F>(
     F: FnMut(DexEvent)
 {
     // 1. 先解析指令事件（如果有） - 立即回调
-    if let Some(instr_event) = crate::instr::parse_instruction_unified(
-        instruction_data, accounts, signature, slot, tx_index, block_time_us, program_id
-    ) {
-        callback(instr_event);  // 立即回调指令事件
-    }
+    // if let Some(instr_event) = crate::instr::parse_instruction_unified(
+    //     instruction_data, accounts, signature, slot, tx_index, block_time_us, program_id
+    // ) {
+    //     callback(instr_event);  // 立即回调指令事件
+    // }
 
     // 2. 逐个解析日志事件 - 每个事件立即回调
     for log in logs {

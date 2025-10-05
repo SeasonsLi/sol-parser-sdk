@@ -2,6 +2,7 @@
 
 use solana_sdk::{pubkey::Pubkey, signature::Signature};
 use crate::core::events::EventMetadata;
+use yellowstone_grpc_proto::prelude::{Transaction, TransactionStatusMeta};
 
 /// 创建事件元数据的通用函数
 pub fn create_metadata(
@@ -145,4 +146,72 @@ pub fn read_vec_u64(data: &[u8], _offset: usize) -> Option<Vec<u64>> {
     // 简化版本：返回默认的两个元素向量
     // 实际实现需要根据具体的数据格式来解析
     Some(vec![0, 0])
+}
+
+/// 快速读取 Pubkey（从字节数组）
+#[inline(always)]
+pub fn read_pubkey_fast(bytes: &[u8]) -> Pubkey {
+    crate::logs::utils::read_pubkey(bytes, 0).unwrap_or_default()
+}
+
+/// 获取指令账户访问器
+/// 返回一个可以通过索引获取 Pubkey 的闭包
+pub fn get_instruction_account_getter<'a>(
+    meta: &'a TransactionStatusMeta,
+    transaction: &'a Option<Transaction>,
+    account_keys: Option<&'a Vec<Vec<u8>>>,
+    // 地址表
+    loaded_writable_addresses: &'a Vec<Vec<u8>>,
+    loaded_readonly_addresses: &'a Vec<Vec<u8>>,
+    index: &(i32, i32), // (outer_index, inner_index)
+) -> Option<impl Fn(usize) -> Pubkey + 'a> {
+    // 1. 获取指令的账户索引数组
+    let accounts = if index.1 >= 0 {
+        // 内层指令
+        meta.inner_instructions
+            .iter()
+            .find(|i| i.index == index.0 as u32)?
+            .instructions
+            .get(index.1 as usize)?
+            .accounts
+            .as_slice()
+    } else {
+        // 外层指令
+        transaction
+            .as_ref()?
+            .message
+            .as_ref()?
+            .instructions
+            .get(index.0 as usize)?
+            .accounts
+            .as_slice()
+    };
+
+    // 2. 创建高性能的账户查找闭包
+    Some(move |acc_index: usize| -> Pubkey {
+        // 获取账户在交易中的索引
+        let account_index = match accounts.get(acc_index) {
+            Some(&idx) => idx as usize,
+            None => return Pubkey::default(),
+        };
+        // 早期返回优化
+        let Some(keys) = account_keys else {
+            return Pubkey::default();
+        };
+        // 主账户列表
+        if let Some(key_bytes) = keys.get(account_index) {
+            return read_pubkey_fast(key_bytes);
+        }
+        // 可写地址
+        let writable_offset = account_index.saturating_sub(keys.len());
+        if let Some(key_bytes) = loaded_writable_addresses.get(writable_offset) {
+            return read_pubkey_fast(key_bytes);
+        }
+        // 只读地址
+        let readonly_offset = writable_offset.saturating_sub(loaded_writable_addresses.len());
+        if let Some(key_bytes) = loaded_readonly_addresses.get(readonly_offset) {
+            return read_pubkey_fast(key_bytes);
+        }
+        Pubkey::default()
+    })
 }

@@ -1,4 +1,5 @@
 use super::types::*;
+use crate::instr::read_pubkey_fast;
 use crate::logs::timestamp_to_microseconds;
 use crate::DexEvent;
 use crossbeam_queue::ArrayQueue;
@@ -6,6 +7,7 @@ use futures::StreamExt;
 use log::error;
 use memchr::memmem;
 use once_cell::sync::Lazy;
+use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tonic::transport::ClientTlsConfig;
@@ -218,10 +220,25 @@ impl YellowstoneGrpc {
             let signature = solana_sdk::signature::Signature::from(sig_array);
             if let Some(meta) = &transaction_info.meta {
                 let logs = &meta.log_messages;
-                Self::parse_events(
+                // 解析 logs 事件
+                // pumpfun \ pumpswap
+                Self::parse_logs_events(
                     meta,
                     transaction,
                     logs,
+                    signature,
+                    transaction_update.slot,
+                    tx_index,
+                    block_time_us,
+                    grpc_recv_us,
+                    queue,
+                    event_type_filter,
+                );
+                // 解析指令事件
+                // metaora damm v2
+                Self::parse_transaction_events(
+                    meta,
+                    transaction,
                     signature,
                     transaction_update.slot,
                     tx_index,
@@ -236,7 +253,7 @@ impl YellowstoneGrpc {
 
     /// 解析日志事件到队列
     #[inline]
-    fn parse_events(
+    fn parse_logs_events(
         meta: &TransactionStatusMeta,
         transaction: &Option<yellowstone_grpc_proto::prelude::Transaction>,
         logs: &[String],
@@ -297,6 +314,57 @@ impl YellowstoneGrpc {
                     &program_invokes,
                 );
                 let _ = queue.push(log_event);
+            }
+        }
+    }
+
+    fn parse_transaction_events(
+        meta: &TransactionStatusMeta,
+        transaction: &Option<yellowstone_grpc_proto::prelude::Transaction>,
+        signature: solana_sdk::signature::Signature,
+        slot: u64,
+        tx_index: u64,
+        block_time_us: Option<i64>,
+        grpc_recv_us: i64,
+        queue: &Arc<ArrayQueue<DexEvent>>,
+        event_type_filter: Option<&EventTypeFilter>,
+    ) {
+        if let Some(_transaction) = transaction {
+            if let Some(message) = &_transaction.message {
+                meta.inner_instructions.iter().for_each(|inner| {
+                    inner.instructions.iter().for_each(|ix| {
+                        // 索引
+                        let get_key = |index: usize| -> Option<&Vec<u8>> {
+                            let account_keys_len = message.account_keys.len();
+                            let writable_len = meta.loaded_writable_addresses.len();
+
+                            if index < account_keys_len {
+                                message.account_keys.get(index)
+                            } else if index < account_keys_len + writable_len {
+                                meta.loaded_writable_addresses.get(index - account_keys_len)
+                            } else {
+                                meta.loaded_readonly_addresses
+                                    .get(index - account_keys_len - writable_len)
+                            }
+                        };
+                        let program_id = get_key(ix.program_id_index as usize)
+                            .map_or(Pubkey::default(), |k| read_pubkey_fast(k));
+                        // 解析内部指令
+                        if let Some(instr_event) = crate::instr::parse_instruction_unified(
+                            &ix.data,
+                            &vec![],
+                            signature,
+                            slot,
+                            tx_index,
+                            block_time_us,
+                            grpc_recv_us,
+                            event_type_filter,
+                            &program_id,
+                        ) {
+                            let _ = queue.push(instr_event);
+                        }
+                    });
+                });
             }
         }
     }

@@ -174,6 +174,7 @@ pub enum Protocol {
     RaydiumCpmm,
     RaydiumClmm,
     RaydiumAmmV4,
+    MeteoraDammV2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -309,6 +310,17 @@ impl EventTypeFilter {
             });
         }
 
+        true
+    }
+
+    #[inline]
+    pub fn includes_meteora_damm_v2(&self) -> bool {
+        if let Some(ref include_only) = self.include_only {
+            return include_only.iter().any(|t| matches!(t, EventType::MeteoraDammV2Swap));
+        }
+        if let Some(ref exclude_types) = self.exclude_types {
+            return !exclude_types.iter().any(|t| matches!(t, EventType::MeteoraDammV2Swap));
+        }
         true
     }
 }

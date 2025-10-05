@@ -87,56 +87,57 @@ fn parse_swap_event(
     block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let lb_pair = read_pubkey(data, offset)?;
-    offset += 32;
+    // let lb_pair = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let from = read_pubkey(data, offset)?;
-    offset += 32;
+    // let from = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let start_bin_id = read_i32_le(data, offset)?;
-    offset += 4;
+    // let start_bin_id = read_i32_le(data, offset)?;
+    // offset += 4;
 
-    let end_bin_id = read_i32_le(data, offset)?;
-    offset += 4;
+    // let end_bin_id = read_i32_le(data, offset)?;
+    // offset += 4;
 
-    let amount_in = read_u64_le(data, offset)?;
-    offset += 8;
+    // let amount_in = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let amount_out = read_u64_le(data, offset)?;
-    offset += 8;
+    // let amount_out = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let swap_for_y = read_bool(data, offset)?;
-    offset += 1;
+    // let swap_for_y = read_bool(data, offset)?;
+    // offset += 1;
 
-    let fee = read_u64_le(data, offset)?;
-    offset += 8;
+    // let fee = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let protocol_fee = read_u64_le(data, offset)?;
-    offset += 8;
+    // let protocol_fee = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let fee_bps = read_u128_le(data, offset)?;
-    offset += 16;
+    // let fee_bps = read_u128_le(data, offset)?;
+    // offset += 16;
 
-    let host_fee = read_u64_le(data, offset)?;
+    // let host_fee = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
+    // let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
-    Some(DexEvent::MeteoraDammV2Swap(MeteoraDammV2SwapEvent {
-        metadata,
-        lb_pair,
-        from,
-        start_bin_id,
-        end_bin_id,
-        amount_in,
-        amount_out,
-        swap_for_y,
-        fee,
-        protocol_fee,
-        fee_bps,
-        host_fee,
-    }))
+    // Some(DexEvent::MeteoraDammV2Swap(MeteoraDammV2SwapEvent {
+    //     metadata,
+    //     lb_pair,
+    //     from,
+    //     start_bin_id,
+    //     end_bin_id,
+    //     amount_in,
+    //     amount_out,
+    //     swap_for_y,
+    //     fee,
+    //     protocol_fee,
+    //     fee_bps,
+    //     host_fee,
+    // }))
+    None
 }
 
 /// 解析 Add Liquidity 事件

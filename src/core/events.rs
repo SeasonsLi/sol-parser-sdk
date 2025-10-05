@@ -1195,21 +1195,25 @@ pub struct MeteoraPoolsSetPoolFeesEvent {
 // ====================== Meteora DAMM V2 Events ======================
 
 /// Meteora DAMM V2 Swap Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MeteoraDammV2SwapEvent {
     pub metadata: EventMetadata,
-    // === 事件核心字段 ===
-    pub lb_pair: Pubkey,
-    pub from: Pubkey,
-    pub start_bin_id: i32,
-    pub end_bin_id: i32,
+    pub pool: Pubkey,
+    pub trade_direction: u8,
+    pub has_referral: bool,
+    // params
     pub amount_in: u64,
-    pub amount_out: u64,
-    pub swap_for_y: bool,
-    pub fee: u64,
+    pub minimum_amount_out: u64,
+    // swapResult
+    pub output_amount: u64,
+    pub next_sqrt_price: u128,
+    pub lp_fee: u64,
     pub protocol_fee: u64,
-    pub fee_bps: u128,
-    pub host_fee: u64,
+    pub partner_fee: u64,
+    pub referral_fee: u64,
+    // top level
+    pub actual_amount_in: u64,
+    pub current_timestamp: u64,
 }
 
 /// Meteora DAMM V2 Add Liquidity Event

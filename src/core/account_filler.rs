@@ -5,79 +5,13 @@
 //! 只填充那些会变化的账户，排除系统程序等常量账户
 
 use crate::core::events::*;
+use crate::instr::utils::get_instruction_account_getter;
 use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use yellowstone_grpc_proto::prelude::{Transaction, TransactionStatusMeta};
 
 /// 账户获取辅助函数类型
 type AccountGetter<'a> = dyn Fn(usize) -> Pubkey + 'a;
-
-#[inline(always)]
-fn read_pubkey_fast(bytes: &[u8]) -> Pubkey {
-    crate::logs::utils::read_pubkey(bytes, 0).unwrap_or_default()
-}
-
-/// 获取指令账户访问器
-/// 返回一个可以通过索引获取 Pubkey 的闭包
-fn get_instruction_account_getter<'a>(
-    meta: &'a TransactionStatusMeta,
-    transaction: &'a Option<Transaction>,
-    account_keys: Option<&'a Vec<Vec<u8>>>,
-    // 地址表
-    loaded_writable_addresses: &'a Vec<Vec<u8>>,
-    loaded_readonly_addresses: &'a Vec<Vec<u8>>,
-    index: &(i32, i32), // (outer_index, inner_index)
-) -> Option<impl Fn(usize) -> Pubkey + 'a> {
-    // 1. 获取指令的账户索引数组
-    let accounts = if index.1 >= 0 {
-        // 内层指令
-        meta.inner_instructions
-            .iter()
-            .find(|i| i.index == index.0 as u32)?
-            .instructions
-            .get(index.1 as usize)?
-            .accounts
-            .as_slice()
-    } else {
-        // 外层指令
-        transaction
-            .as_ref()?
-            .message
-            .as_ref()?
-            .instructions
-            .get(index.0 as usize)?
-            .accounts
-            .as_slice()
-    };
-
-    // 2. 创建高性能的账户查找闭包
-    Some(move |acc_index: usize| -> Pubkey {
-        // 获取账户在交易中的索引
-        let account_index = match accounts.get(acc_index) {
-            Some(&idx) => idx as usize,
-            None => return Pubkey::default(),
-        };
-        // 早期返回优化
-        let Some(keys) = account_keys else {
-            return Pubkey::default();
-        };
-        // 主账户列表
-        if let Some(key_bytes) = keys.get(account_index) {
-            return read_pubkey_fast(key_bytes);
-        }
-        // 可写地址
-        let writable_offset = account_index.saturating_sub(keys.len());
-        if let Some(key_bytes) = loaded_writable_addresses.get(writable_offset) {
-            return read_pubkey_fast(key_bytes);
-        }
-        // 只读地址
-        let readonly_offset = writable_offset.saturating_sub(loaded_writable_addresses.len());
-        if let Some(key_bytes) = loaded_readonly_addresses.get(readonly_offset) {
-            return read_pubkey_fast(key_bytes);
-        }
-        Pubkey::default()
-    })
-}
 
 /// 主要的账户填充调度函数
 pub fn fill_accounts_from_transaction_data(
@@ -579,12 +513,7 @@ pub mod meteora {
         swap_event: &mut MeteoraDammV2SwapEvent,
         get_account: &AccountGetter<'_>,
     ) {
-        if swap_event.lb_pair == Pubkey::default() {
-            swap_event.lb_pair = get_account(1);
-        }
-        if swap_event.from == Pubkey::default() {
-            swap_event.from = get_account(0);
-        }
+        
     }
 
     /// 填充 Meteora DLMM Swap 事件账户
