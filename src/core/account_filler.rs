@@ -81,6 +81,24 @@ pub fn fill_accounts_from_transaction_data(
                 }
             }
         }
+        DexEvent::MeteoraDammV2Swap(ref mut event) => {
+            if let Some(invoke) = program_invokes
+                .get(crate::grpc::program_ids::METEORA_DAMM_V2_PROGRAM_ID)
+                .as_ref()
+                .and_then(|v| v.last())
+            {
+                if let Some(get_account) = get_instruction_account_getter(
+                    meta,
+                    transaction,
+                    account_keys,
+                    loaded_writable_addresses,
+                    loaded_readonly_addresses,
+                    invoke,
+                ) {
+                    meteora::fill_damm_v2_swap_accounts(event, &get_account);
+                }
+            }
+        }
         _ => {} // 其他事件类型TODO
     }
 }
@@ -120,21 +138,13 @@ pub fn fill_accounts_from_instruction_data(event: &mut DexEvent, instruction_acc
         }
 
         // Meteora 事件填充
-        DexEvent::MeteoraPoolsSwap(ref mut swap_event) => {
-            meteora::fill_pools_swap_accounts(swap_event, &get_account);
-        }
+        DexEvent::MeteoraPoolsSwap(ref mut swap_event) => {}
         DexEvent::MeteoraDammV2Swap(ref mut swap_event) => {
             meteora::fill_damm_v2_swap_accounts(swap_event, &get_account);
         }
-        DexEvent::MeteoraDlmmSwap(ref mut swap_event) => {
-            meteora::fill_dlmm_swap_accounts(swap_event, &get_account);
-        }
-        DexEvent::MeteoraDlmmAddLiquidity(ref mut event) => {
-            meteora::fill_dlmm_add_liquidity_accounts(event, &get_account);
-        }
-        DexEvent::MeteoraDlmmRemoveLiquidity(ref mut event) => {
-            meteora::fill_dlmm_remove_liquidity_accounts(event, &get_account);
-        }
+        DexEvent::MeteoraDlmmSwap(ref mut swap_event) => {}
+        DexEvent::MeteoraDlmmAddLiquidity(ref mut event) => {}
+        DexEvent::MeteoraDlmmRemoveLiquidity(ref mut event) => {}
 
         // Bonk 事件填充
         DexEvent::BonkTrade(ref mut trade_event) => {
@@ -486,90 +496,28 @@ pub mod orca {
 pub mod meteora {
     use super::*;
 
-    /// 填充 Meteora Pools Swap 事件账户
-    /// 基于Meteora AMM IDL swap指令账户映射:
-    /// 0: pool
-    /// 1: userSourceToken
-    /// 2: userDestinationToken
-    /// 3: aVault
-    /// 4: bVault
-    /// 5: aTokenVault
-    /// 6: bTokenVault
-    /// 7: aVaultLpMint
-    /// 8: bVaultLpMint
-    /// 9: aVaultLp
-    /// 10: bVaultLp
-    /// 11: adminTokenFee
-    /// 12: user
-    pub fn fill_pools_swap_accounts(
-        swap_event: &mut MeteoraPoolsSwapEvent,
-        get_account: &AccountGetter<'_>,
-    ) {
-        // MeteoraPoolsSwapEvent只有IDL事件字段，无指令账户字段
-    }
-
     /// 填充 Meteora DAMM V2 Swap 事件账户
     pub fn fill_damm_v2_swap_accounts(
         swap_event: &mut MeteoraDammV2SwapEvent,
         get_account: &AccountGetter<'_>,
     ) {
-        
-    }
-
-    /// 填充 Meteora DLMM Swap 事件账户
-    /// 基于Meteora DLMM IDL swap指令账户映射:
-    /// 0: lbPair
-    /// 5: userTokenOut
-    /// 10: user
-    pub fn fill_dlmm_swap_accounts(
-        swap_event: &mut MeteoraDlmmSwapEvent,
-        get_account: &AccountGetter<'_>,
-    ) {
-        if swap_event.pool == Pubkey::default() {
-            swap_event.pool = get_account(0);
+        if swap_event.token_a_vault == Pubkey::default() {
+            swap_event.token_a_vault = get_account(4);
         }
-        if swap_event.from == Pubkey::default() {
-            swap_event.from = get_account(10);
+        if swap_event.token_b_vault == Pubkey::default() {
+            swap_event.token_b_vault = get_account(5);
         }
-    }
-
-    /// 填充 Meteora DLMM Add Liquidity 事件账户
-    /// 基于Meteora DLMM IDL addLiquidity指令账户映射:
-    /// 0: position
-    /// 1: lbPair
-    /// 11: sender
-    pub fn fill_dlmm_add_liquidity_accounts(
-        event: &mut MeteoraDlmmAddLiquidityEvent,
-        get_account: &AccountGetter<'_>,
-    ) {
-        if event.position == Pubkey::default() {
-            event.position = get_account(0);
+        if swap_event.token_a_mint == Pubkey::default() {
+            swap_event.token_a_mint = get_account(6);
         }
-        if event.pool == Pubkey::default() {
-            event.pool = get_account(1);
+        if swap_event.token_b_mint == Pubkey::default() {
+            swap_event.token_b_mint = get_account(7);
         }
-        if event.from == Pubkey::default() {
-            event.from = get_account(11);
+        if swap_event.token_a_program == Pubkey::default() {
+            swap_event.token_a_program = get_account(9);
         }
-    }
-
-    /// 填充 Meteora DLMM Remove Liquidity 事件账户
-    /// 基于Meteora DLMM IDL removeLiquidity指令账户映射:
-    /// 0: position
-    /// 1: lbPair
-    /// 11: sender
-    pub fn fill_dlmm_remove_liquidity_accounts(
-        event: &mut MeteoraDlmmRemoveLiquidityEvent,
-        get_account: &AccountGetter<'_>,
-    ) {
-        if event.position == Pubkey::default() {
-            event.position = get_account(0);
-        }
-        if event.pool == Pubkey::default() {
-            event.pool = get_account(1);
-        }
-        if event.from == Pubkey::default() {
-            event.from = get_account(11);
+        if swap_event.token_b_program == Pubkey::default() {
+            swap_event.token_b_program = get_account(10);
         }
     }
 }

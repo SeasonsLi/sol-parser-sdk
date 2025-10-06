@@ -1214,6 +1214,13 @@ pub struct MeteoraDammV2SwapEvent {
     // top level
     pub actual_amount_in: u64,
     pub current_timestamp: u64,
+    // ---------- 账号 -------------
+    pub token_a_vault: Pubkey,
+    pub token_b_vault: Pubkey,
+    pub token_a_mint: Pubkey,
+    pub token_b_mint: Pubkey,
+    pub token_a_program: Pubkey,
+    pub token_b_program: Pubkey,
 }
 
 /// Meteora DAMM V2 Add Liquidity Event

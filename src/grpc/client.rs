@@ -331,26 +331,40 @@ impl YellowstoneGrpc {
     ) {
         if let Some(_transaction) = transaction {
             if let Some(message) = &_transaction.message {
-                meta.inner_instructions.iter().for_each(|inner| {
-                    inner.instructions.iter().for_each(|ix| {
-                        // 索引
-                        let get_key = |index: usize| -> Option<&Vec<u8>> {
-                            let account_keys_len = message.account_keys.len();
-                            let writable_len = meta.loaded_writable_addresses.len();
+                // 索引器
+                let get_key = |index: usize| -> Option<&Vec<u8>> {
+                    let account_keys_len = message.account_keys.len();
+                    let writable_len = meta.loaded_writable_addresses.len();
 
-                            if index < account_keys_len {
-                                message.account_keys.get(index)
-                            } else if index < account_keys_len + writable_len {
-                                meta.loaded_writable_addresses.get(index - account_keys_len)
-                            } else {
-                                meta.loaded_readonly_addresses
-                                    .get(index - account_keys_len - writable_len)
-                            }
-                        };
+                    if index < account_keys_len {
+                        message.account_keys.get(index)
+                    } else if index < account_keys_len + writable_len {
+                        meta.loaded_writable_addresses.get(index - account_keys_len)
+                    } else {
+                        meta.loaded_readonly_addresses.get(index - account_keys_len - writable_len)
+                    }
+                };
+                // 记录每个程序的调用栈位置
+                let mut program_invokes: HashMap<String, Vec<(i32, i32)>> = HashMap::new();
+                let mut outer_index = -1;
+                message.instructions.iter().for_each(|ix| {
+                    outer_index += 1;
+                    let program_id = get_key(ix.program_id_index as usize)
+                        .map_or(Pubkey::default(), |k| read_pubkey_fast(k));
+                    program_invokes
+                        .entry(program_id.to_string())
+                        .or_default()
+                        .push((outer_index, -1));
+                });
+                meta.inner_instructions.iter().for_each(|inner| {
+                    // 内部指令索引
+                    let mut inner_index = -1;
+                    inner.instructions.iter().for_each(|ix| {
+                        inner_index += 1;
                         let program_id = get_key(ix.program_id_index as usize)
                             .map_or(Pubkey::default(), |k| read_pubkey_fast(k));
-                        // 解析内部指令
-                        if let Some(instr_event) = crate::instr::parse_instruction_unified(
+                        // 解析内部指令 (cpi log)
+                        if let Some(mut instr_event) = crate::instr::parse_instruction_unified(
                             &ix.data,
                             &vec![],
                             signature,
@@ -361,7 +375,19 @@ impl YellowstoneGrpc {
                             event_type_filter,
                             &program_id,
                         ) {
+                            // 填充账户信息
+                            crate::core::account_filler::fill_accounts_from_transaction_data(
+                                &mut instr_event,
+                                meta,
+                                transaction,
+                                &program_invokes,
+                            );
                             let _ = queue.push(instr_event);
+                        } else {
+                            program_invokes
+                                .entry(program_id.to_string())
+                                .or_default()
+                                .push((inner.index as i32, inner_index));
                         }
                     });
                 });

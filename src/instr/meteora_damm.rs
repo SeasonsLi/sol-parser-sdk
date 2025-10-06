@@ -180,6 +180,7 @@ fn parse_swap_log_instruction(
         referral_fee,
         actual_amount_in,
         current_timestamp,
+        ..Default::default()
     }))
 }
 
