@@ -1250,16 +1250,6 @@ pub struct MeteoraDammV2RemoveLiquidityEvent {
     pub token_b_amount: u64,
 }
 
-/// Meteora DAMM V2 Initialize Pool Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeteoraDammV2InitializePoolEvent {
-    pub metadata: EventMetadata,
-    pub lb_pair: Pubkey,
-    pub bin_step: u16,
-    pub token_x: Pubkey,
-    pub token_y: Pubkey,
-}
-
 /// Meteora DAMM V2 Create Position Event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeteoraDammV2CreatePositionEvent {
@@ -1278,49 +1268,6 @@ pub struct MeteoraDammV2ClosePositionEvent {
     pub owner: Pubkey,
     pub position: Pubkey,
     pub position_nft_mint: Pubkey,
-}
-
-/// Meteora DAMM V2 Claim Position Fee Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeteoraDammV2ClaimPositionFeeEvent {
-    pub metadata: EventMetadata,
-    pub lb_pair: Pubkey,
-    pub position: Pubkey,
-    pub owner: Pubkey,
-    pub fee_x: u64,
-    pub fee_y: u64,
-}
-
-/// Meteora DAMM V2 Initialize Reward Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeteoraDammV2InitializeRewardEvent {
-    pub metadata: EventMetadata,
-    pub lb_pair: Pubkey,
-    pub reward_mint: Pubkey,
-    pub funder: Pubkey,
-    pub reward_index: u64,
-    pub reward_duration: u64,
-}
-
-/// Meteora DAMM V2 Fund Reward Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeteoraDammV2FundRewardEvent {
-    pub metadata: EventMetadata,
-    pub lb_pair: Pubkey,
-    pub funder: Pubkey,
-    pub reward_index: u64,
-    pub amount: u64,
-}
-
-/// Meteora DAMM V2 Claim Reward Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeteoraDammV2ClaimRewardEvent {
-    pub metadata: EventMetadata,
-    pub lb_pair: Pubkey,
-    pub position: Pubkey,
-    pub owner: Pubkey,
-    pub reward_index: u64,
-    pub total_reward: u64,
 }
 
 /// Meteora DLMM Swap Event
@@ -1418,24 +1365,28 @@ pub struct MeteoraDlmmClaimFeeEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DexEvent {
     // PumpFun 事件
-    PumpFunCreate(PumpFunCreateTokenEvent),
-    PumpFunTrade(PumpFunTradeEvent),
-    PumpFunMigrate(PumpFunMigrateEvent),
+    PumpFunCreate(PumpFunCreateTokenEvent), // - 已对接
+    PumpFunTrade(PumpFunTradeEvent),        // - 已对接
+    PumpFunMigrate(PumpFunMigrateEvent),    // - 已对接
+
+    // PumpSwap 事件
+    PumpSwapBuy(PumpSwapBuyEvent),                      // - 已对接
+    PumpSwapSell(PumpSwapSellEvent),                    // - 已对接
+    PumpSwapCreatePool(PumpSwapCreatePoolEvent),        // - 已对接
+    PumpSwapLiquidityAdded(PumpSwapLiquidityAdded),     // - 已对接
+    PumpSwapLiquidityRemoved(PumpSwapLiquidityRemoved), // - 已对接
+
+    // Meteora DAMM V2 事件
+    MeteoraDammV2Swap(MeteoraDammV2SwapEvent), // - 已对接
+    MeteoraDammV2CreatePosition(MeteoraDammV2CreatePositionEvent), // - 已对接
+    MeteoraDammV2ClosePosition(MeteoraDammV2ClosePositionEvent), // - 已对接
+    MeteoraDammV2AddLiquidity(MeteoraDammV2AddLiquidityEvent), // - 已对接
+    MeteoraDammV2RemoveLiquidity(MeteoraDammV2RemoveLiquidityEvent), // - 已对接
 
     // Bonk 事件
     BonkTrade(BonkTradeEvent),
     BonkPoolCreate(BonkPoolCreateEvent),
     BonkMigrateAmm(BonkMigrateAmmEvent),
-
-    // PumpSwap 事件
-    PumpSwapBuy(PumpSwapBuyEvent),
-    PumpSwapSell(PumpSwapSellEvent),
-    PumpSwapCreatePool(PumpSwapCreatePoolEvent),
-    // PumpSwapTrade(PumpSwapTrade),
-    PumpSwapLiquidityAdded(PumpSwapLiquidityAdded),
-    PumpSwapLiquidityRemoved(PumpSwapLiquidityRemoved),
-    // PumpSwapPoolUpdated(PumpSwapPoolUpdated),
-    // PumpSwapFeesClaimed(PumpSwapFeesClaimed),
 
     // Raydium CLMM 事件
     RaydiumClmmSwap(RaydiumClmmSwapEvent),
@@ -1473,19 +1424,6 @@ pub enum DexEvent {
     MeteoraPoolsBootstrapLiquidity(MeteoraPoolsBootstrapLiquidityEvent),
     MeteoraPoolsPoolCreated(MeteoraPoolsPoolCreatedEvent),
     MeteoraPoolsSetPoolFees(MeteoraPoolsSetPoolFeesEvent),
-
-    // Meteora DAMM V2 事件
-    MeteoraDammV2Swap(MeteoraDammV2SwapEvent),
-    MeteoraDammV2CreatePosition(MeteoraDammV2CreatePositionEvent),
-    MeteoraDammV2ClosePosition(MeteoraDammV2ClosePositionEvent),
-    MeteoraDammV2AddLiquidity(MeteoraDammV2AddLiquidityEvent),
-    MeteoraDammV2RemoveLiquidity(MeteoraDammV2RemoveLiquidityEvent),
-
-    MeteoraDammV2InitializePool(MeteoraDammV2InitializePoolEvent),
-    MeteoraDammV2ClaimPositionFee(MeteoraDammV2ClaimPositionFeeEvent),
-    MeteoraDammV2InitializeReward(MeteoraDammV2InitializeRewardEvent),
-    MeteoraDammV2FundReward(MeteoraDammV2FundRewardEvent),
-    MeteoraDammV2ClaimReward(MeteoraDammV2ClaimRewardEvent),
 
     // Meteora DLMM 事件
     MeteoraDlmmSwap(MeteoraDlmmSwapEvent),

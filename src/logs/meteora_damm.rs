@@ -2,9 +2,9 @@
 //!
 //! 解析 Meteora DAMM V2 程序的日志事件
 
-use solana_sdk::signature::Signature;
-use crate::core::events::*;
 use super::utils::*;
+use crate::core::events::*;
+use solana_sdk::signature::Signature;
 
 /// Meteora DAMM V2 事件 discriminator 常量
 pub mod discriminators {
@@ -21,7 +21,14 @@ pub mod discriminators {
 }
 
 /// 主要的 Meteora DAMM V2 日志解析函数
-pub fn parse_log(log: &str, signature: Signature, slot: u64, tx_index: u64, block_time_us: Option<i64>, grpc_recv_us: i64) -> Option<DexEvent> {
+pub fn parse_log(
+    log: &str,
+    signature: Signature,
+    slot: u64,
+    tx_index: u64,
+    block_time_us: Option<i64>,
+    grpc_recv_us: i64,
+) -> Option<DexEvent> {
     parse_structured_log(log, signature, slot, tx_index, block_time_us, grpc_recv_us)
 }
 
@@ -46,34 +53,59 @@ fn parse_structured_log(
     match discriminator {
         discriminators::SWAP_EVENT => {
             parse_swap_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
+        }
         discriminators::ADD_LIQUIDITY_EVENT => {
             parse_add_liquidity_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
-        discriminators::REMOVE_LIQUIDITY_EVENT => {
-            parse_remove_liquidity_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
-        discriminators::INITIALIZE_POOL_EVENT => {
-            parse_initialize_pool_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
-        discriminators::CREATE_POSITION_EVENT => {
-            parse_create_position_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
+        }
+        discriminators::REMOVE_LIQUIDITY_EVENT => parse_remove_liquidity_event(
+            data,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        discriminators::INITIALIZE_POOL_EVENT => parse_initialize_pool_event(
+            data,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        discriminators::CREATE_POSITION_EVENT => parse_create_position_event(
+            data,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
         discriminators::CLOSE_POSITION_EVENT => {
             parse_close_position_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
-        discriminators::CLAIM_POSITION_FEE_EVENT => {
-            parse_claim_position_fee_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
-        discriminators::INITIALIZE_REWARD_EVENT => {
-            parse_initialize_reward_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
+        }
+        discriminators::CLAIM_POSITION_FEE_EVENT => parse_claim_position_fee_event(
+            data,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
+        discriminators::INITIALIZE_REWARD_EVENT => parse_initialize_reward_event(
+            data,
+            signature,
+            slot,
+            tx_index,
+            block_time_us,
+            grpc_recv_us,
+        ),
         discriminators::FUND_REWARD_EVENT => {
             parse_fund_reward_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
+        }
         discriminators::CLAIM_REWARD_EVENT => {
             parse_claim_reward_event(data, signature, slot, tx_index, block_time_us, grpc_recv_us)
-        },
+        }
         _ => None,
     }
 }
@@ -231,28 +263,29 @@ fn parse_initialize_pool_event(
     block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let lb_pair = read_pubkey(data, offset)?;
-    offset += 32;
+    // let lb_pair = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let bin_step = read_u16_le(data, offset)?;
-    offset += 2;
+    // let bin_step = read_u16_le(data, offset)?;
+    // offset += 2;
 
-    let token_x = read_pubkey(data, offset)?;
-    offset += 32;
+    // let token_x = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let token_y = read_pubkey(data, offset)?;
+    // let token_y = read_pubkey(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
+    // let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
-    Some(DexEvent::MeteoraDammV2InitializePool(MeteoraDammV2InitializePoolEvent {
-        metadata,
-        lb_pair,
-        bin_step,
-        token_x,
-        token_y,
-    }))
+    // Some(DexEvent::MeteoraDammV2InitializePool(MeteoraDammV2InitializePoolEvent {
+    //     metadata,
+    //     lb_pair,
+    //     bin_step,
+    //     token_x,
+    //     token_y,
+    // }))
+    None
 }
 
 /// 解析 Create Position 事件
@@ -320,32 +353,34 @@ fn parse_claim_position_fee_event(
     block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let lb_pair = read_pubkey(data, offset)?;
-    offset += 32;
+    // let lb_pair = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let position = read_pubkey(data, offset)?;
-    offset += 32;
+    // let position = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let owner = read_pubkey(data, offset)?;
-    offset += 32;
+    // let owner = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let fee_x = read_u64_le(data, offset)?;
-    offset += 8;
+    // let fee_x = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let fee_y = read_u64_le(data, offset)?;
+    // let fee_y = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
+    // let metadata =
+    //     create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
-    Some(DexEvent::MeteoraDammV2ClaimPositionFee(MeteoraDammV2ClaimPositionFeeEvent {
-        metadata,
-        lb_pair,
-        position,
-        owner,
-        fee_x,
-        fee_y,
-    }))
+    // Some(DexEvent::MeteoraDammV2ClaimPositionFee(MeteoraDammV2ClaimPositionFeeEvent {
+    //     metadata,
+    //     lb_pair,
+    //     position,
+    //     owner,
+    //     fee_x,
+    //     fee_y,
+    // }))
+    None
 }
 
 /// 解析 Initialize Reward 事件
@@ -357,32 +392,34 @@ fn parse_initialize_reward_event(
     block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let lb_pair = read_pubkey(data, offset)?;
-    offset += 32;
+    // let lb_pair = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let reward_mint = read_pubkey(data, offset)?;
-    offset += 32;
+    // let reward_mint = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let funder = read_pubkey(data, offset)?;
-    offset += 32;
+    // let funder = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let reward_index = read_u64_le(data, offset)?;
-    offset += 8;
+    // let reward_index = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let reward_duration = read_u64_le(data, offset)?;
+    // let reward_duration = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
+    // let metadata =
+    //     create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
-    Some(DexEvent::MeteoraDammV2InitializeReward(MeteoraDammV2InitializeRewardEvent {
-        metadata,
-        lb_pair,
-        reward_mint,
-        funder,
-        reward_index,
-        reward_duration,
-    }))
+    // Some(DexEvent::MeteoraDammV2InitializeReward(MeteoraDammV2InitializeRewardEvent {
+    //     metadata,
+    //     lb_pair,
+    //     reward_mint,
+    //     funder,
+    //     reward_index,
+    //     reward_duration,
+    // }))
+    None
 }
 
 /// 解析 Fund Reward 事件
@@ -394,28 +431,30 @@ fn parse_fund_reward_event(
     block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let lb_pair = read_pubkey(data, offset)?;
-    offset += 32;
+    // let lb_pair = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let funder = read_pubkey(data, offset)?;
-    offset += 32;
+    // let funder = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let reward_index = read_u64_le(data, offset)?;
-    offset += 8;
+    // let reward_index = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let amount = read_u64_le(data, offset)?;
+    // let amount = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
+    // let metadata =
+    //     create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
-    Some(DexEvent::MeteoraDammV2FundReward(MeteoraDammV2FundRewardEvent {
-        metadata,
-        lb_pair,
-        funder,
-        reward_index,
-        amount,
-    }))
+    // Some(DexEvent::MeteoraDammV2FundReward(MeteoraDammV2FundRewardEvent {
+    //     metadata,
+    //     lb_pair,
+    //     funder,
+    //     reward_index,
+    //     amount,
+    // }))
+    None
 }
 
 /// 解析 Claim Reward 事件
@@ -427,32 +466,34 @@ fn parse_claim_reward_event(
     block_time_us: Option<i64>,
     grpc_recv_us: i64,
 ) -> Option<DexEvent> {
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let lb_pair = read_pubkey(data, offset)?;
-    offset += 32;
+    // let lb_pair = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let position = read_pubkey(data, offset)?;
-    offset += 32;
+    // let position = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let owner = read_pubkey(data, offset)?;
-    offset += 32;
+    // let owner = read_pubkey(data, offset)?;
+    // offset += 32;
 
-    let reward_index = read_u64_le(data, offset)?;
-    offset += 8;
+    // let reward_index = read_u64_le(data, offset)?;
+    // offset += 8;
 
-    let total_reward = read_u64_le(data, offset)?;
+    // let total_reward = read_u64_le(data, offset)?;
 
-    let metadata = create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
+    // let metadata =
+    //     create_metadata_simple(signature, slot, tx_index, block_time_us, lb_pair, grpc_recv_us);
 
-    Some(DexEvent::MeteoraDammV2ClaimReward(MeteoraDammV2ClaimRewardEvent {
-        metadata,
-        lb_pair,
-        position,
-        owner,
-        reward_index,
-        total_reward,
-    }))
+    // Some(DexEvent::MeteoraDammV2ClaimReward(MeteoraDammV2ClaimRewardEvent {
+    //     metadata,
+    //     lb_pair,
+    //     position,
+    //     owner,
+    //     reward_index,
+    //     total_reward,
+    // }))
+    None
 }
 
 /// 解析文本格式日志
