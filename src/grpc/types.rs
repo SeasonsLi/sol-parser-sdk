@@ -322,6 +322,8 @@ impl EventTypeFilter {
                     EventType::MeteoraDammV2Swap
                         | EventType::MeteoraDammV2AddLiquidity
                         | EventType::MeteoraDammV2CreatePosition
+                        | EventType::MeteoraDammV2ClosePosition
+                        | EventType::MeteoraDammV2RemoveLiquidity
                 )
             });
         }
@@ -332,6 +334,8 @@ impl EventTypeFilter {
                     EventType::MeteoraDammV2Swap
                         | EventType::MeteoraDammV2AddLiquidity
                         | EventType::MeteoraDammV2CreatePosition
+                        | EventType::MeteoraDammV2ClosePosition
+                        | EventType::MeteoraDammV2RemoveLiquidity
                 )
             });
         }

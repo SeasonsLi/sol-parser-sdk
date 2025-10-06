@@ -11,7 +11,9 @@ use solana_sdk::{pubkey::Pubkey, signature::Signature};
 pub mod discriminators {
     pub const SWAP_LOG: [u8; 8] = [27, 60, 21, 213, 138, 170, 187, 147];
     pub const CREATE_POSITION_LOG: [u8; 8] = [156, 15, 119, 198, 29, 181, 221, 55];
+    pub const CLOSE_POSITION_LOG: [u8; 8] = [20, 145, 144, 68, 143, 142, 214, 178];
     pub const ADD_LIQUIDITY_LOG: [u8; 8] = [175, 242, 8, 157, 30, 247, 185, 169];
+    pub const REMOVE_LIQUIDITY_LOG: [u8; 8] = [87, 46, 88, 98, 175, 96, 34, 91];
 }
 
 /// Meteora DAMM 程序 ID
@@ -60,8 +62,30 @@ pub fn parse_instruction(
                 grpc_recv_us,
             );
         }
+        discriminators::CLOSE_POSITION_LOG => {
+            return parse_close_position_log_instruction(
+                data,
+                accounts,
+                signature,
+                slot,
+                tx_index,
+                block_time_us,
+                grpc_recv_us,
+            );
+        }
         discriminators::ADD_LIQUIDITY_LOG => {
             return parse_add_liquidity_log_instruction(
+                cpi_data,
+                accounts,
+                signature,
+                slot,
+                tx_index,
+                block_time_us,
+                grpc_recv_us,
+            );
+        }
+        discriminators::REMOVE_LIQUIDITY_LOG => {
+            return parse_remove_liquidity_log_instruction(
                 cpi_data,
                 accounts,
                 signature,
@@ -198,6 +222,45 @@ fn parse_create_position_log_instruction(
     }))
 }
 
+/// 解析 Close Position Log 指令
+fn parse_close_position_log_instruction(
+    data: &[u8],
+    accounts: &[Pubkey],
+    signature: Signature,
+    slot: u64,
+    tx_index: u64,
+    block_time_us: Option<i64>,
+    rpc_recv_us: i64,
+) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    // pool (Pubkey - 32 bytes)
+    let pool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    // owner (Pubkey - 32 bytes)
+    let owner = read_pubkey(data, offset)?;
+    offset += 32;
+
+    // position (Pubkey - 32 bytes)
+    let position = read_pubkey(data, offset)?;
+    offset += 32;
+
+    // positionNftMint (Pubkey - 32 bytes)
+    let position_nft_mint = read_pubkey(data, offset)?;
+
+    let metadata =
+        create_metadata(signature, slot, tx_index, block_time_us.unwrap_or_default(), rpc_recv_us);
+
+    Some(DexEvent::MeteoraDammV2ClosePosition(MeteoraDammV2ClosePositionEvent {
+        metadata,
+        pool,
+        owner,
+        position,
+        position_nft_mint,
+    }))
+}
+
 /// 解析 Add Liquidity Log 指令
 fn parse_add_liquidity_log_instruction(
     data: &[u8],
@@ -264,5 +327,65 @@ fn parse_add_liquidity_log_instruction(
         token_b_amount,
         total_amount_a,
         total_amount_b,
+    }))
+}
+
+/// 解析 Add Liquidity Log 指令
+fn parse_remove_liquidity_log_instruction(
+    data: &[u8],
+    accounts: &[Pubkey],
+    signature: Signature,
+    slot: u64,
+    tx_index: u64,
+    block_time_us: Option<i64>,
+    rpc_recv_us: i64,
+) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    // pool (Pubkey - 32 bytes)
+    let pool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    // position (Pubkey - 32 bytes)
+    let position = read_pubkey(data, offset)?;
+    offset += 32;
+
+    // owner (Pubkey - 32 bytes)
+    let owner = read_pubkey(data, offset)?;
+    offset += 32;
+
+    // params.liquidityDelta (u128 - 16 bytes)
+    let liquidity_delta = read_u128_le(data, offset)?;
+    offset += 16;
+
+    // params.tokenAAmountThreshold (u64 - 8 bytes)
+    let token_a_amount_threshold = read_u64_le(data, offset)?;
+    offset += 8;
+
+    // params.tokenBAmountThreshold (u64 - 8 bytes)
+    let token_b_amount_threshold = read_u64_le(data, offset)?;
+    offset += 8;
+
+    // tokenAAmount (u64 - 8 bytes)
+    let token_a_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    // tokenBAmount (u64 - 8 bytes)
+    let token_b_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let metadata =
+        create_metadata(signature, slot, tx_index, block_time_us.unwrap_or_default(), rpc_recv_us);
+
+    Some(DexEvent::MeteoraDammV2RemoveLiquidity(MeteoraDammV2RemoveLiquidityEvent {
+        metadata,
+        pool,
+        position,
+        owner,
+        liquidity_delta,
+        token_a_amount_threshold,
+        token_b_amount_threshold,
+        token_a_amount,
+        token_b_amount,
     }))
 }

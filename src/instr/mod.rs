@@ -54,6 +54,8 @@ pub fn parse_instruction_unified(
                     EventType::MeteoraDammV2Swap
                         | EventType::MeteoraDammV2AddLiquidity
                         | EventType::MeteoraDammV2CreatePosition
+                        | EventType::MeteoraDammV2ClosePosition
+                        | EventType::MeteoraDammV2RemoveLiquidity
                 )
             });
             if unlikely(!should_parse) {

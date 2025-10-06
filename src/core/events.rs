@@ -1238,11 +1238,16 @@ pub struct MeteoraDammV2AddLiquidityEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeteoraDammV2RemoveLiquidityEvent {
     pub metadata: EventMetadata,
-    pub lb_pair: Pubkey,
-    pub from: Pubkey,
+    pub pool: Pubkey,
     pub position: Pubkey,
-    pub amounts: [u64; 2],
-    pub active_bin_id: i32,
+    pub owner: Pubkey,
+    // params
+    pub liquidity_delta: u128,
+    pub token_a_amount_threshold: u64,
+    pub token_b_amount_threshold: u64,
+    // amounts
+    pub token_a_amount: u64,
+    pub token_b_amount: u64,
 }
 
 /// Meteora DAMM V2 Initialize Pool Event
@@ -1269,8 +1274,10 @@ pub struct MeteoraDammV2CreatePositionEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeteoraDammV2ClosePositionEvent {
     pub metadata: EventMetadata,
-    pub position: Pubkey,
+    pub pool: Pubkey,
     pub owner: Pubkey,
+    pub position: Pubkey,
+    pub position_nft_mint: Pubkey,
 }
 
 /// Meteora DAMM V2 Claim Position Fee Event
@@ -1470,11 +1477,11 @@ pub enum DexEvent {
     // Meteora DAMM V2 事件
     MeteoraDammV2Swap(MeteoraDammV2SwapEvent),
     MeteoraDammV2CreatePosition(MeteoraDammV2CreatePositionEvent),
-    MeteoraDammV2AddLiquidity(MeteoraDammV2AddLiquidityEvent),
-    
-    MeteoraDammV2RemoveLiquidity(MeteoraDammV2RemoveLiquidityEvent),
-    MeteoraDammV2InitializePool(MeteoraDammV2InitializePoolEvent),
     MeteoraDammV2ClosePosition(MeteoraDammV2ClosePositionEvent),
+    MeteoraDammV2AddLiquidity(MeteoraDammV2AddLiquidityEvent),
+    MeteoraDammV2RemoveLiquidity(MeteoraDammV2RemoveLiquidityEvent),
+
+    MeteoraDammV2InitializePool(MeteoraDammV2InitializePoolEvent),
     MeteoraDammV2ClaimPositionFee(MeteoraDammV2ClaimPositionFeeEvent),
     MeteoraDammV2InitializeReward(MeteoraDammV2InitializeRewardEvent),
     MeteoraDammV2FundReward(MeteoraDammV2FundRewardEvent),
