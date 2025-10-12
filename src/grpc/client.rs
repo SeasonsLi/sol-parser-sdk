@@ -167,9 +167,9 @@ impl YellowstoneGrpc {
                     let block_time = update_msg.created_at.unwrap_or_default();
                     let block_time_us = timestamp_to_microseconds(&block_time);
                     msg_count += 1;
-                    if msg_count % 100 == 0 {
-                        println!("📨 Received {} messages", msg_count);
-                    }
+                    // if msg_count % 100 == 0 {
+                    //     println!("📨 Received {} messages", msg_count);
+                    // }
 
                     if let Some(update) = update_msg.update_oneof {
                         if let subscribe_update::UpdateOneof::Transaction(transaction_update) =
