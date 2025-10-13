@@ -52,14 +52,40 @@ impl YellowstoneGrpc {
 
         let self_clone = self.clone();
         tokio::spawn(async move {
-            let _ = self_clone
-                .stream_to_queue(
-                    transaction_filters,
-                    account_filters,
-                    event_type_filter,
-                    queue_clone,
-                )
-                .await;
+            // 带自动重连的订阅循环
+            let mut reconnect_delay_secs = 1u64;
+            let max_reconnect_delay_secs = 60u64;
+
+            loop {
+                println!("🔄 尝试建立GRPC流连接...");
+
+                match self_clone
+                    .stream_to_queue(
+                        transaction_filters.clone(),
+                        account_filters.clone(),
+                        event_type_filter.clone(),
+                        queue_clone.clone(),
+                    )
+                    .await
+                {
+                    Ok(_) => {
+                        // 流正常结束（断开），准备重连
+                        println!("⚠️ GRPC流已断开，{}秒后重连...", reconnect_delay_secs);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs)).await;
+
+                        // 重连成功后重置延迟
+                        reconnect_delay_secs = 1;
+                    }
+                    Err(e) => {
+                        // 连接失败，指数退避重试
+                        println!("❌ GRPC连接失败: {} - {}秒后重试", e, reconnect_delay_secs);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs)).await;
+
+                        // 指数退避，最大60秒
+                        reconnect_delay_secs = (reconnect_delay_secs * 2).min(max_reconnect_delay_secs);
+                    }
+                }
+            }
         });
 
         Ok(queue)
@@ -74,13 +100,15 @@ impl YellowstoneGrpc {
         account_filters: Vec<AccountFilter>,
         event_type_filter: Option<EventTypeFilter>,
         queue: Arc<ArrayQueue<DexEvent>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), String> {
         println!("🚀 Starting Zero-Copy DEX event subscription...");
 
         let _ = rustls::crypto::ring::default_provider().install_default();
 
-        let mut builder = GeyserGrpcClient::build_from_shared(self.endpoint.clone())?
-            .x_token(self.token.clone())?
+        let mut builder = GeyserGrpcClient::build_from_shared(self.endpoint.clone())
+            .map_err(|e| e.to_string())?
+            .x_token(self.token.clone())
+            .map_err(|e| e.to_string())?
             .max_decoding_message_size(1024 * 1024 * 1024);
 
         if self.config.connection_timeout_ms > 0 {
@@ -92,7 +120,7 @@ impl YellowstoneGrpc {
         // 添加 TLS 配置
         if self.config.enable_tls {
             let tls_config = ClientTlsConfig::new().with_native_roots();
-            builder = builder.tls_config(tls_config)?;
+            builder = builder.tls_config(tls_config).map_err(|e| e.to_string())?;
         }
 
         println!("🔗 Connecting to gRPC endpoint: {}", self.endpoint);
@@ -104,8 +132,9 @@ impl YellowstoneGrpc {
                 c
             }
             Err(e) => {
-                println!("❌ Connection failed: {:?}", e);
-                return Err(e.into());
+                let err_msg = e.to_string();
+                println!("❌ Connection failed: {:?}", err_msg);
+                return Err(err_msg);
             }
         };
         println!("✅ Connected to Yellowstone gRPC");
@@ -156,7 +185,8 @@ impl YellowstoneGrpc {
         };
 
         println!("📡 Subscribing to stream...");
-        let (_subscribe_tx, mut stream) = client.subscribe_with_request(Some(request)).await?;
+        let (_subscribe_tx, mut stream) = client.subscribe_with_request(Some(request)).await
+            .map_err(|e| e.to_string())?;
         println!("✅ Subscribed successfully - Zero Copy Mode");
         println!("👂 Listening for events...");
 
