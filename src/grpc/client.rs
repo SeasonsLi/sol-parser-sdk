@@ -1,4 +1,5 @@
 use super::types::*;
+use crate::core::EventMetadata;
 use crate::instr::read_pubkey_fast;
 use crate::logs::timestamp_to_microseconds;
 use crate::DexEvent;
@@ -148,7 +149,7 @@ impl YellowstoneGrpc {
                 SubscribeRequestFilterAccounts {
                     account: filter.account.clone(),
                     owner: filter.owner.clone(),
-                    filters: vec![],
+                    filters: filter.filters.clone(),
                     nonempty_txn_signature: None,
                 },
             );
@@ -202,22 +203,33 @@ impl YellowstoneGrpc {
                     // }
 
                     if let Some(update) = update_msg.update_oneof {
-                        if let subscribe_update::UpdateOneof::Transaction(transaction_update) =
-                            update
-                        {
-                            let grpc_recv_us = unsafe {
-                                let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
-                                libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
-                                (ts.tv_sec as i64) * 1_000_000 + (ts.tv_nsec as i64) / 1_000
-                            };
-                            Self::parse_transaction(
-                                &transaction_update,
-                                grpc_recv_us,
-                                Some(block_time_us as i64),
-                                &queue,
-                                event_type_filter.as_ref(),
-                            )
-                            .await;
+                        let grpc_recv_us = unsafe {
+                            let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+                            libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
+                            (ts.tv_sec as i64) * 1_000_000 + (ts.tv_nsec as i64) / 1_000
+                        };
+                        match update {
+                            subscribe_update::UpdateOneof::Transaction(transaction_update) => {
+                                Self::parse_transaction(
+                                    &transaction_update,
+                                    grpc_recv_us,
+                                    Some(block_time_us as i64),
+                                    &queue,
+                                    event_type_filter.as_ref(),
+                                )
+                                .await;
+                            }
+                            subscribe_update::UpdateOneof::Account(account_update) => {
+                                Self::parse_account(
+                                    &account_update,
+                                    grpc_recv_us,
+                                    Some(block_time_us as i64),
+                                    &queue,
+                                    event_type_filter.as_ref(),
+                                )
+                                .await;
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -231,6 +243,39 @@ impl YellowstoneGrpc {
         println!("⚠️  Stream ended");
 
         Ok(())
+    }
+
+    /// 解析账户事件
+    async fn parse_account(
+        account_update: &SubscribeUpdateAccount,
+        grpc_recv_us: i64,
+        block_time_us: Option<i64>,
+        queue: &Arc<ArrayQueue<DexEvent>>,
+        event_type_filter: Option<&EventTypeFilter>,
+    ) {
+        if let Some(account_info) = &account_update.account {
+            // 构建账户数据
+            let account_data = crate::accounts::AccountData {
+                pubkey: read_pubkey_fast(&account_info.pubkey),
+                executable: account_info.executable,
+                lamports: account_info.lamports,
+                owner: read_pubkey_fast(&account_info.owner),
+                rent_epoch: account_info.rent_epoch,
+                data: account_info.data.clone(),
+            };
+            // 构建元数据
+            let metadata = EventMetadata {
+                signature: Default::default(), // Account updates don't have signatures
+                slot: account_update.slot,
+                tx_index: 0,
+                block_time_us: block_time_us.unwrap_or(0),
+                grpc_recv_us,
+            };
+            // 使用新的统一账户解析器
+            if let Some(event) = crate::accounts::parse_account_unified(&account_data, metadata, event_type_filter) {
+                let _ = queue.push(event);
+            }
+        }
     }
 
     /// 解析交易事件

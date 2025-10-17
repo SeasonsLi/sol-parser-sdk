@@ -18,5 +18,11 @@ pub use unified_parser::{
     parse_transaction_events_streaming, parse_logs_streaming, parse_transaction_with_streaming_listener, StreamingEventListener
 };
 
+pub use crate::accounts::{
+    parse_token_account, parse_nonce_account, AccountData,
+    is_nonce_account, is_token_program_account,
+    parse_account_unified,
+};
+
 // 兼容性类型
 pub type ParsedEvent = DexEvent;

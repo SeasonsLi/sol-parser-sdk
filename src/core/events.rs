@@ -785,33 +785,52 @@ pub struct BonkPlatformConfig {
 }
 
 /// PumpSwap Global Config Account Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapGlobalConfigAccountEvent {
     pub metadata: EventMetadata,
     pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
     pub global_config: PumpSwapGlobalConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapGlobalConfig {
-    pub fee_recipient: Pubkey,
-    pub fee_rate: u64,
+    pub admin: Pubkey,
+    pub lp_fee_basis_points: u64,
+    pub protocol_fee_basis_points: u64,
+    pub disable_flags: u8,
+    pub protocol_fee_recipients: [Pubkey; 8],
+    pub coin_creator_fee_basis_points: u64,
+    pub admin_set_coin_creator_authority: Pubkey,
 }
 
 /// PumpSwap Pool Account Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapPoolAccountEvent {
     pub metadata: EventMetadata,
     pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
     pub pool: PumpSwapPool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapPool {
+    pub pool_bump: u8,
+    pub index: u16,
+    pub creator: Pubkey,
     pub base_mint: Pubkey,
     pub quote_mint: Pubkey,
-    pub base_reserves: u64,
-    pub quote_reserves: u64,
+    pub lp_mint: Pubkey,
+    pub pool_base_token_account: Pubkey,
+    pub pool_quote_token_account: Pubkey,
+    pub lp_supply: u64,
+    pub coin_creator: Pubkey,
 }
 
 /// PumpFun Bonding Curve Account Event
@@ -1008,44 +1027,42 @@ pub struct RaydiumCpmmPoolState {
 }
 
 /// Token Account Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenAccountEvent {
     pub metadata: EventMetadata,
     pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
     pub owner: Pubkey,
-    pub mint: Pubkey,
-    pub amount: u64,
-    pub delegate: Option<Pubkey>,
-    pub state: u8,
-    pub is_native: Option<u64>,
-    pub delegated_amount: u64,
-    pub close_authority: Option<Pubkey>,
+    pub rent_epoch: u64,
+    pub amount: Option<u64>,
+    pub token_owner: Pubkey,
 }
 
 /// Nonce Account Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NonceAccountEvent {
     pub metadata: EventMetadata,
     pub pubkey: Pubkey,
-    pub authority: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
     pub nonce: String,
-    pub fee_calculator: FeeCalculator,
+    pub authority: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeeCalculator {
-    pub lamports_per_signature: u64,
-}
-
-/// Token Info Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Token Info Event (for Mint accounts)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenInfoEvent {
     pub metadata: EventMetadata,
-    pub mint: Pubkey,
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
+    pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
     pub supply: u64,
+    pub decimals: u8,
 }
 
 // ====================== Orca Whirlpool Events ======================
@@ -1443,8 +1460,10 @@ pub enum DexEvent {
     MeteoraDlmmClaimFee(MeteoraDlmmClaimFeeEvent),
 
     // 账户事件
-    TokenAccount(TokenAccountEvent),
-    NonceAccount(NonceAccountEvent),
+    TokenAccount(TokenAccountEvent), // - 已对接
+    NonceAccount(NonceAccountEvent), // - 已对接
+    PumpSwapGlobalConfigAccount(PumpSwapGlobalConfigAccountEvent), // - 已对接
+    PumpSwapPoolAccount(PumpSwapPoolAccountEvent), // - 已对接
 
     // 区块元数据事件
     BlockMeta(BlockMetaEvent),

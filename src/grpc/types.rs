@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use yellowstone_grpc_proto::geyser::{
+    subscribe_request_filter_accounts_filter::Filter,
+    subscribe_request_filter_accounts_filter_memcmp::Data, SubscribeRequestFilterAccountsFilter,
+    SubscribeRequestFilterAccountsFilterMemcmp,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -119,7 +124,7 @@ impl Default for TransactionFilter {
 pub struct AccountFilter {
     pub account: Vec<String>,
     pub owner: Vec<String>,
-    pub filters: Vec<AccountFilterData>,
+    pub filters: Vec<SubscribeRequestFilterAccountsFilter>,
 }
 
 impl AccountFilter {
@@ -137,7 +142,7 @@ impl AccountFilter {
         self
     }
 
-    pub fn add_filter(mut self, filter: AccountFilterData) -> Self {
+    pub fn add_filter(mut self, filter: SubscribeRequestFilterAccountsFilter) -> Self {
         self.filters.push(filter);
         self
     }
