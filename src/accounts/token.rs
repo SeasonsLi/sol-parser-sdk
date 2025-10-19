@@ -5,14 +5,7 @@
 use crate::core::events::{EventMetadata, TokenAccountEvent};
 use crate::DexEvent;
 use solana_sdk::pubkey::Pubkey;
-use spl_token::solana_program::program_pack::Pack;
-use spl_token::state::{Account, Mint};
-use spl_token_2022::{
-    extension::StateWithExtensions,
-    state::{Account as Account2022, Mint as Mint2022},
-};
 
-/// Account data from gRPC subscription or other sources
 #[derive(Clone, Debug)]
 pub struct AccountData {
     pub pubkey: Pubkey,
@@ -23,92 +16,59 @@ pub struct AccountData {
     pub data: Vec<u8>,
 }
 
-/// Parse token account or mint from account data
-///
-/// This function attempts to parse the account as:
-/// 1. SPL Token Mint
-/// 2. SPL Token-2022 Mint
-/// 3. SPL Token Account
-/// 4. SPL Token-2022 Account
-///
-/// # Arguments
-/// * `account` - Account data from gRPC
-/// * `metadata` - Event metadata (slot, signature, etc.)
-///
-/// # Returns
-/// Returns `Some(DexEvent)` if parsing succeeds, `None` otherwise
 pub fn parse_token_account(account: &AccountData, metadata: EventMetadata) -> Option<DexEvent> {
-    let pubkey = account.pubkey;
-    let executable = account.executable;
-    let lamports = account.lamports;
-    let owner = account.owner;
-    let rent_epoch = account.rent_epoch;
-
-    // Try parsing as SPL Token Mint
-    if account.data.len() >= Mint::LEN {
-        if let Ok(mint) = Mint::unpack_from_slice(&account.data) {
-            let event = TokenAccountEvent {
-                metadata,
-                pubkey,
-                executable,
-                lamports,
-                owner,
-                rent_epoch,
-                amount: None,
-                token_owner: owner, 
-                supply: Some(mint.supply),
-                decimals: Some(mint.decimals),
-            };
-            return Some(DexEvent::TokenAccount(event));
+    if account.data.len() <= 100 {
+        if let Some(event) = parse_mint_fast(account, metadata.clone()) {
+            return Some(event);
         }
     }
+    parse_token_fast(account, metadata)
+}
 
-    // Try parsing as SPL Token-2022 Mint
-    if account.data.len() >= Account2022::LEN {
-        if let Ok(mint) = StateWithExtensions::<Mint2022>::unpack(&account.data) {
-            let event = TokenAccountEvent {
-                metadata,
-                pubkey,
-                executable,
-                lamports,
-                owner,
-                rent_epoch,
-                amount: None,
-                token_owner: owner,
-                supply: Some(mint.base.supply),
-                decimals: Some(mint.base.decimals),
-            };
-            return Some(DexEvent::TokenAccount(event));
-        }
+fn parse_mint_fast(account: &AccountData, metadata: EventMetadata) -> Option<DexEvent> {
+    const MINT_SIZE: usize = 82;
+    const SUPPLY_OFFSET: usize = 36;
+    const DECIMALS_OFFSET: usize = 44;
+    if account.data.len() < MINT_SIZE {
+        return None;
     }
-
-    // Parse as Token Account (SPL Token or Token-2022)
-    let amount = if account.owner.to_bytes() == spl_token_2022::ID.to_bytes() {
-        StateWithExtensions::<Account2022>::unpack(&account.data)
-            .ok()
-            .map(|info| info.base.amount)
-    } else {
-        Account::unpack(&account.data).ok().map(|info| info.amount)
+    let supply_bytes: [u8; 8] = account.data[SUPPLY_OFFSET..SUPPLY_OFFSET + 8].try_into().ok()?;
+    let supply = u64::from_le_bytes(supply_bytes);
+    let decimals = account.data[DECIMALS_OFFSET];
+    let event = TokenAccountEvent {
+        metadata,
+        pubkey: account.pubkey,
+        executable: account.executable,
+        lamports: account.lamports,
+        owner: account.owner,
+        rent_epoch: account.rent_epoch,
+        amount: None,
+        token_owner: account.owner,
+        supply: Some(supply),
+        decimals: Some(decimals),
     };
+    Some(DexEvent::TokenAccount(event))
+}
+fn parse_token_fast(account: &AccountData, metadata: EventMetadata) -> Option<DexEvent> {
+    const AMOUNT_OFFSET: usize = 64;
+    if account.data.len() < AMOUNT_OFFSET + 8 {
+        return None;
+    }
+    let amount_bytes: [u8; 8] = account.data[AMOUNT_OFFSET..AMOUNT_OFFSET + 8].try_into().ok()?;
+    let amount = u64::from_le_bytes(amount_bytes);
 
     let event = TokenAccountEvent {
         metadata,
-        pubkey,
-        executable,
-        lamports,
-        owner,
-        rent_epoch,
-        amount,
+        pubkey: account.pubkey,
+        executable: account.executable,
+        lamports: account.lamports,
+        owner: account.owner,
+        rent_epoch: account.rent_epoch,
+        amount: Some(amount),
         token_owner: account.owner,
         supply: None,
         decimals: None,
     };
 
     Some(DexEvent::TokenAccount(event))
-}
-
-/// Helper function to detect if account is owned by token program
-pub fn is_token_program_account(owner: &Pubkey) -> bool {
-    owner.to_bytes() == spl_token::ID.to_bytes()
-        || owner.to_bytes() == spl_token_2022::ID.to_bytes()
 }
