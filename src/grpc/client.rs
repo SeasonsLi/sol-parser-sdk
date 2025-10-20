@@ -46,12 +46,7 @@ impl YellowstoneGrpc {
         token: Option<String>,
         config: ClientConfig,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Self {
-            endpoint,
-            token,
-            config,
-            control_tx: Arc::new(Mutex::new(None)),
-        })
+        Ok(Self { endpoint, token, config, control_tx: Arc::new(Mutex::new(None)) })
     }
 
     /// 订阅DEX事件（零拷贝无锁队列）
@@ -85,7 +80,8 @@ impl YellowstoneGrpc {
                     Ok(_) => {
                         // 流正常结束（断开），准备重连
                         println!("⚠️ GRPC流已断开，{}秒后重连...", reconnect_delay_secs);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs))
+                            .await;
 
                         // 重连成功后重置延迟
                         reconnect_delay_secs = 1;
@@ -93,10 +89,12 @@ impl YellowstoneGrpc {
                     Err(e) => {
                         // 连接失败，指数退避重试
                         println!("❌ GRPC连接失败: {} - {}秒后重试", e, reconnect_delay_secs);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs))
+                            .await;
 
                         // 指数退避，最大60秒
-                        reconnect_delay_secs = (reconnect_delay_secs * 2).min(max_reconnect_delay_secs);
+                        reconnect_delay_secs =
+                            (reconnect_delay_secs * 2).min(max_reconnect_delay_secs);
                     }
                 }
             }
@@ -114,10 +112,7 @@ impl YellowstoneGrpc {
         // 获取控制通道发送器
         let control_sender = {
             let control_guard = self.control_tx.lock().await;
-            control_guard
-                .as_ref()
-                .ok_or("No active subscription to update")?
-                .clone()
+            control_guard.as_ref().ok_or("No active subscription to update")?.clone()
         };
 
         // 构建新的订阅请求
@@ -164,10 +159,7 @@ impl YellowstoneGrpc {
         };
 
         // 发送更新请求
-        control_sender
-            .send(request)
-            .await
-            .map_err(|e| format!("Failed to send update: {}", e))?;
+        control_sender.send(request).await.map_err(|e| format!("Failed to send update: {}", e))?;
 
         Ok(())
     }
@@ -266,8 +258,8 @@ impl YellowstoneGrpc {
         };
 
         println!("📡 Subscribing to stream...");
-        let (subscribe_tx, mut stream) = client.subscribe_with_request(Some(request)).await
-            .map_err(|e| e.to_string())?;
+        let (subscribe_tx, mut stream) =
+            client.subscribe_with_request(Some(request)).await.map_err(|e| e.to_string())?;
         println!("✅ Subscribed successfully - Zero Copy Mode");
         println!("👂 Listening for events...");
 
@@ -389,7 +381,9 @@ impl YellowstoneGrpc {
                 grpc_recv_us,
             };
             // 使用新的统一账户解析器
-            if let Some(event) = crate::accounts::parse_account_unified(&account_data, metadata, event_type_filter) {
+            if let Some(event) =
+                crate::accounts::parse_account_unified(&account_data, metadata, event_type_filter)
+            {
                 let _ = queue.push(event);
             }
         }
@@ -458,15 +452,17 @@ impl YellowstoneGrpc {
         queue: &Arc<ArrayQueue<DexEvent>>,
         event_type_filter: Option<&EventTypeFilter>,
     ) {
-        let has_create = event_type_filter.map(|f| f.includes_pumpfun()).unwrap_or(true)
-            && crate::logs::optimized_matcher::detect_pumpfun_create(logs);
+        // 优化: 先检查 filter，如果不需要 pumpfun，直接跳过昂贵的 detect 操作
+        let needs_pumpfun_check = event_type_filter.map(|f| f.includes_pumpfun()).unwrap_or(true);
+        let has_create =
+            needs_pumpfun_check && crate::logs::optimized_matcher::detect_pumpfun_create(logs);
 
         // 外层指令索引
         let mut outer_index = -1;
         // 内层指令索引
         let mut inner_index = -1;
         // 记录每个程序的调用栈位置 - 只是为了查找【填充账户信息】的指令的位置（如果有更好的其他办法，后续可优化）
-        let mut program_invokes: HashMap<String, Vec<(i32, i32)>> = HashMap::new();
+        let mut program_invokes: HashMap<&str, Vec<(i32, i32)>> = HashMap::new();
 
         for log in logs.iter() {
             if let Some((program_id, depth)) =
@@ -537,20 +533,19 @@ impl YellowstoneGrpc {
                         meta.loaded_readonly_addresses.get(index - account_keys_len - writable_len)
                     }
                 };
+                // 静态空切片，避免重复分配
+                static EMPTY_ACCOUNTS: &[Pubkey] = &[];
+
                 // 记录每个程序的调用栈位置 - 只是为了查找【填充账户信息】的指令的位置（如果有更好的其他办法，后续可优化）
-                let mut program_invokes: HashMap<String, Vec<(i32, i32)>> = HashMap::new();
+                let mut program_invokes: HashMap<Pubkey, Vec<(i32, i32)>> = HashMap::new();
                 let mut outer_index = -1;
                 message.instructions.iter().for_each(|ix| {
                     outer_index += 1;
                     let program_id = get_key(ix.program_id_index as usize)
                         .map_or(Pubkey::default(), |k| read_pubkey_fast(k));
-                    program_invokes
-                        .entry(program_id.to_string())
-                        .or_default()
-                        .push((outer_index, -1));
+                    program_invokes.entry(program_id).or_default().push((outer_index, -1));
                 });
                 meta.inner_instructions.iter().for_each(|inner| {
-                    // 内部指令索引
                     let mut inner_index = -1;
                     inner.instructions.iter().for_each(|ix| {
                         inner_index += 1;
@@ -559,7 +554,7 @@ impl YellowstoneGrpc {
                         // 解析内部指令 (cpi log)
                         if let Some(mut instr_event) = crate::instr::parse_instruction_unified(
                             &ix.data,
-                            &vec![],
+                            EMPTY_ACCOUNTS,
                             signature,
                             slot,
                             tx_index,
@@ -568,8 +563,7 @@ impl YellowstoneGrpc {
                             event_type_filter,
                             &program_id,
                         ) {
-                            // 填充账户信息
-                            crate::core::account_filler::fill_accounts_from_transaction_data(
+                            crate::core::account_filler::fill_accounts_with_owned_keys(
                                 &mut instr_event,
                                 meta,
                                 transaction,
@@ -578,7 +572,7 @@ impl YellowstoneGrpc {
                             let _ = queue.push(instr_event);
                         } else {
                             program_invokes
-                                .entry(program_id.to_string())
+                                .entry(program_id)
                                 .or_default()
                                 .push((inner.index as i32, inner_index));
                         }

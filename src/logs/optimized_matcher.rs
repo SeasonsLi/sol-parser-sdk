@@ -268,7 +268,7 @@ static INVOKE_FINDER: Lazy<memmem::Finder> = Lazy::new(|| memmem::Finder::new(b"
 /// 从日志中解析指令调用信息 (SIMD 优化版本)
 /// 返回 (program_id, depth)
 #[inline]
-pub fn parse_invoke_info(log: &str) -> Option<(String, usize)> {
+pub fn parse_invoke_info(log: &str) -> Option<(&str, usize)> {
     let log_bytes = log.as_bytes();
 
     // SIMD 快速查找 "invoke ["
@@ -304,7 +304,7 @@ pub fn parse_invoke_info(log: &str) -> Option<(String, usize)> {
         return None;
     }
 
-    let program_id = std::str::from_utf8(&log_bytes[program_start..program_end]).ok()?.to_string();
+    let program_id = std::str::from_utf8(&log_bytes[program_start..program_end]).ok()?;
 
     Some((program_id, depth))
 }

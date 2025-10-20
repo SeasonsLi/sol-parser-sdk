@@ -18,7 +18,7 @@ pub fn fill_accounts_from_transaction_data(
     event: &mut DexEvent,
     meta: &TransactionStatusMeta,
     transaction: &Option<Transaction>,
-    program_invokes: &HashMap<String, Vec<(i32, i32)>>,
+    program_invokes: &HashMap<&str, Vec<(i32, i32)>>,
 ) {
     // 获取账户的辅助函数
     let account_keys =
@@ -85,6 +85,92 @@ pub fn fill_accounts_from_transaction_data(
             if let Some(invoke) = program_invokes
                 .get(crate::grpc::program_ids::METEORA_DAMM_V2_PROGRAM_ID)
                 .as_ref()
+                .and_then(|v| v.last())
+            {
+                if let Some(get_account) = get_instruction_account_getter(
+                    meta,
+                    transaction,
+                    account_keys,
+                    loaded_writable_addresses,
+                    loaded_readonly_addresses,
+                    invoke,
+                ) {
+                    meteora::fill_damm_v2_swap_accounts(event, &get_account);
+                }
+            }
+        }
+        _ => {} // 其他事件类型TODO
+    }
+}
+
+/// 账户填充函数（用于 parse_transaction_events，使用 Pubkey 避免 to_string() 开销）
+pub fn fill_accounts_with_owned_keys(
+    event: &mut DexEvent,
+    meta: &TransactionStatusMeta,
+    transaction: &Option<Transaction>,
+    program_invokes: &HashMap<Pubkey, Vec<(i32, i32)>>,
+) {
+    // 获取账户的辅助函数
+    let account_keys =
+        transaction.as_ref().and_then(|tx| tx.message.as_ref()).map(|msg| &msg.account_keys);
+    let loaded_writable_addresses = &meta.loaded_writable_addresses;
+    let loaded_readonly_addresses = &meta.loaded_readonly_addresses;
+    match event {
+        // PumpFun 事件填充
+        DexEvent::PumpFunTrade(ref mut trade_event) => {
+            if let Some(invoke) = program_invokes
+                .get(&crate::grpc::program_ids::PUMPFUN_PROGRAM)
+                .and_then(|v| v.last())
+            {
+                if let Some(get_account) = get_instruction_account_getter(
+                    meta,
+                    transaction,
+                    account_keys,
+                    loaded_writable_addresses,
+                    loaded_readonly_addresses,
+                    invoke,
+                ) {
+                    pumpfun::fill_trade_accounts(trade_event, &get_account);
+                }
+            }
+        }
+        DexEvent::PumpSwapBuy(ref mut event) => {
+            if let Some(invoke) = program_invokes
+                .get(&crate::grpc::program_ids::PUMPSWAP_PROGRAM)
+                .and_then(|v| v.last())
+            {
+                if let Some(get_account) = get_instruction_account_getter(
+                    meta,
+                    transaction,
+                    account_keys,
+                    loaded_writable_addresses,
+                    loaded_readonly_addresses,
+                    invoke,
+                ) {
+                    pumpswap::fill_buy_accounts(event, &get_account);
+                }
+            }
+        }
+        DexEvent::PumpSwapSell(ref mut event) => {
+            if let Some(invoke) = program_invokes
+                .get(&crate::grpc::program_ids::PUMPSWAP_PROGRAM)
+                .and_then(|v| v.last())
+            {
+                if let Some(get_account) = get_instruction_account_getter(
+                    meta,
+                    transaction,
+                    account_keys,
+                    loaded_writable_addresses,
+                    loaded_readonly_addresses,
+                    invoke,
+                ) {
+                    pumpswap::fill_sell_accounts(event, &get_account);
+                }
+            }
+        }
+        DexEvent::MeteoraDammV2Swap(ref mut event) => {
+            if let Some(invoke) = program_invokes
+                .get(&crate::grpc::program_ids::METEORA_DAMM_V2_PROGRAM)
                 .and_then(|v| v.last())
             {
                 if let Some(get_account) = get_instruction_account_getter(
