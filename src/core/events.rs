@@ -1026,6 +1026,19 @@ pub struct RaydiumCpmmPoolState {
     pub open_time: u64,
 }
 
+/// Token Info Event
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TokenInfoEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
+    pub supply: u64,
+    pub decimals: u8,
+}
+
 /// Token Account Event
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenAccountEvent {
@@ -1037,8 +1050,6 @@ pub struct TokenAccountEvent {
     pub rent_epoch: u64,
     pub amount: Option<u64>,
     pub token_owner: Pubkey,
-    pub supply: Option<u64>,
-    pub decimals: Option<u8>,
 }
 
 /// Nonce Account Event
@@ -1449,6 +1460,7 @@ pub enum DexEvent {
     MeteoraDlmmClaimFee(MeteoraDlmmClaimFeeEvent),
 
     // 账户事件
+    TokenInfo(TokenInfoEvent),  // - 已对接
     TokenAccount(TokenAccountEvent), // - 已对接
     NonceAccount(NonceAccountEvent), // - 已对接
     PumpSwapGlobalConfigAccount(PumpSwapGlobalConfigAccountEvent), // - 已对接

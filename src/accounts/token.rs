@@ -2,7 +2,7 @@
 //!
 //! 提供 Token Account 和 Mint 账户的解析功能
 
-use crate::core::events::{EventMetadata, TokenAccountEvent};
+use crate::core::events::{EventMetadata, TokenAccountEvent, TokenInfoEvent};
 use crate::DexEvent;
 use solana_sdk::pubkey::Pubkey;
 
@@ -35,19 +35,17 @@ fn parse_mint_fast(account: &AccountData, metadata: EventMetadata) -> Option<Dex
     let supply_bytes: [u8; 8] = account.data[SUPPLY_OFFSET..SUPPLY_OFFSET + 8].try_into().ok()?;
     let supply = u64::from_le_bytes(supply_bytes);
     let decimals = account.data[DECIMALS_OFFSET];
-    let event = TokenAccountEvent {
+    let event = TokenInfoEvent {
         metadata,
         pubkey: account.pubkey,
         executable: account.executable,
         lamports: account.lamports,
         owner: account.owner,
         rent_epoch: account.rent_epoch,
-        amount: None,
-        token_owner: account.owner,
-        supply: Some(supply),
-        decimals: Some(decimals),
+        supply: supply,
+        decimals: decimals,
     };
-    Some(DexEvent::TokenAccount(event))
+    Some(DexEvent::TokenInfo(event))
 }
 fn parse_token_fast(account: &AccountData, metadata: EventMetadata) -> Option<DexEvent> {
     const AMOUNT_OFFSET: usize = 64;
@@ -66,8 +64,6 @@ fn parse_token_fast(account: &AccountData, metadata: EventMetadata) -> Option<De
         rent_epoch: account.rent_epoch,
         amount: Some(amount),
         token_owner: account.owner,
-        supply: None,
-        decimals: None,
     };
 
     Some(DexEvent::TokenAccount(event))
