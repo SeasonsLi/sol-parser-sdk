@@ -14,17 +14,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 solana-sdk = "3.0.0"
-solana-client = "3.0.3"
-solana-program = "3.0.0" 
-solana-rpc-client = "3.0.3"
-solana-rpc-client-api = "3.0.3"
-solana-transaction-status = "3.0.3"
-solana-account-decoder = "3.0.3"
+solana-client = "3.0.8"
+solana-program = "3.0.0"
+solana-rpc-client = "3.0.8"
+solana-rpc-client-api = "3.0.8"
+solana-transaction-status = "3.0.8"
+solana-account-decoder = "3.0.8"
 solana-hash = "3.0.0"
-solana-entry = "3.0.3"
-solana-rpc-client-nonce-utils = "3.0.3"
-solana-perf = "3.0.3"
-solana-metrics = "3.0.3"
+solana-entry = "3.0.8"
+solana-rpc-client-nonce-utils = "3.0.8"
+solana-perf = "3.0.8"
+solana-metrics = "3.0.8"
 spl-associated-token-account = "7.0.0"
 borsh = { version = "1.5.3", features = ["derive"] }
 serde = { version = "1.0.215", features = ["derive"] }
