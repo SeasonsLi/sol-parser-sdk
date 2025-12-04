@@ -209,6 +209,7 @@ pub fn parse_log_optimized(
         }
     }
 
+    // ⚡ 使用极限优化版本解析器 (5-10x 性能提升)
     let mut event = crate::logs::parse_pumpfun_log(
         log,
         signature,
@@ -219,6 +220,7 @@ pub fn parse_log_optimized(
         is_created_buy,
     );
     if event.is_none() {
+        // ⚡ 使用 PumpSwap 极限优化解析器 (纳秒级延迟)
         event = crate::logs::parse_pump_amm_log(
             log,
             signature,

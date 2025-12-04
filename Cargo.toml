@@ -12,6 +12,15 @@ readme = "README.md"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bench]]
+name = "pumpfun_parsing"
+harness = false
+
+[features]
+default = []
+perf-stats = []  # 启用性能统计
+ultra-perf = []  # 极限性能模式（启用所有 unsafe 优化）
+
 [dependencies]
 solana-sdk = "3.0.0"
 solana-client = "3.0.8"
@@ -81,7 +90,23 @@ libc = "0.2"
 criterion = { version = "0.7.0", features = ["html_reports"] }
 [profile.release]
 opt-level = 3
-lto = "thin"
+lto = "fat"           # 更激进的 LTO（从 thin 改为 fat）
 codegen-units = 1
 panic = 'abort'
 strip = true
+incremental = false   # 禁用增量编译以获得更好的优化
+
+[profile.release.package."*"]
+opt-level = 3
+codegen-units = 1
+
+# 极限性能配置文件
+[profile.ultra-perf]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = 'abort'
+strip = true
+incremental = false
+overflow-checks = false  # 禁用溢出检查（极限性能）
