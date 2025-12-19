@@ -44,6 +44,14 @@
 - **SIMD 加速** 模式匹配（memchr）
 - **无锁队列** ArrayQueue 事件传递
 
+### 🎚️ 灵活的顺序模式
+| 模式 | 延迟 | 说明 |
+|------|---------|-------------|
+| **Unordered** | 10-20μs | 立即输出，超低延迟 |
+| **MicroBatch** | 50-200μs | 微批次排序，时间窗口内排序 |
+| **StreamingOrdered** | 0.1-5ms | 流式排序，连续序列立即释放 |
+| **Ordered** | 1-50ms | 完整 slot 排序，等待整个 slot 完成 |
+
 ### 🚀 优化特性
 - ✅ **零堆分配** 热路径无堆分配
 - ✅ **SIMD 模式匹配** 所有协议检测 SIMD 加速
@@ -51,6 +59,7 @@
 - ✅ **激进内联** 关键函数强制内联
 - ✅ **事件类型过滤** 精准解析目标事件
 - ✅ **条件 Create 检测** 仅在需要时检测
+- ✅ **多种顺序模式** 延迟与顺序的灵活平衡
 
 ---
 
@@ -71,6 +80,9 @@ git clone https://github.com/0xfnzero/sol-parser-sdk
 # 运行性能测试（需要 sudo 以获得高精度计时）
 sudo cargo run --example basic --release
 
+# PumpSwap 事件 + MicroBatch 有序模式
+cargo run --example pumpswap_ordered --release
+
 # 预期输出：
 # gRPC接收时间: 1234567890 μs
 # 事件接收时间: 1234567900 μs
@@ -79,17 +91,37 @@ sudo cargo run --example basic --release
 
 **为什么需要 sudo？** 示例使用 `libc::clock_gettime(CLOCK_REALTIME)` 获取微秒级精度计时，在某些系统上可能需要提升权限。
 
+### 示例列表
+
+| 示例 | 说明 | 命令 |
+|---------|-------------|----------|
+| `basic` | 基础 DEX 事件解析，延迟测量 | `sudo cargo run --example basic --release` |
+| `pumpswap_ordered` | PumpSwap 事件 + MicroBatch 有序模式 | `cargo run --example pumpswap_ordered --release` |
+| `dynamic_subscription` | 动态更新过滤器（无需重连） | `cargo run --example dynamic_subscription --release` |
+
 ### 基本用法
 
 ```rust
-use sol_parser_sdk::grpc::{YellowstoneGrpc, EventTypeFilter, EventType};
+use sol_parser_sdk::grpc::{YellowstoneGrpc, ClientConfig, OrderMode, EventTypeFilter, EventType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 gRPC 客户端
+    // 创建 gRPC 客户端（默认 Unordered 模式）
     let grpc = YellowstoneGrpc::new(
         "https://solana-yellowstone-grpc.publicnode.com:443".to_string(),
         None,
+    )?;
+    
+    // 或使用自定义配置启用有序模式
+    let config = ClientConfig {
+        order_mode: OrderMode::MicroBatch,  // 低延迟 + 有序
+        micro_batch_us: 100,                // 100μs 批次窗口
+        ..ClientConfig::default()
+    };
+    let grpc = YellowstoneGrpc::new_with_config(
+        "https://solana-yellowstone-grpc.publicnode.com:443".to_string(),
+        None,
+        config,
     )?;
 
     // 仅过滤 PumpFun Trade 事件（超快路径）
@@ -261,10 +293,46 @@ grpc.update_subscription(
 ).await?;
 ```
 
+### 顺序模式
+根据场景选择延迟与顺序的平衡：
+
+```rust
+use sol_parser_sdk::grpc::{ClientConfig, OrderMode};
+
+// 超低延迟（无顺序保证）
+let config = ClientConfig {
+    order_mode: OrderMode::Unordered,
+    ..ClientConfig::default()
+};
+
+// 低延迟微批次排序（50-200μs）
+let config = ClientConfig {
+    order_mode: OrderMode::MicroBatch,
+    micro_batch_us: 100,  // 100μs 批次窗口
+    ..ClientConfig::default()
+};
+
+// 流式排序，连续序列立即释放（0.1-5ms）
+let config = ClientConfig {
+    order_mode: OrderMode::StreamingOrdered,
+    order_timeout_ms: 50,  // 不完整序列超时
+    ..ClientConfig::default()
+};
+
+// 完整 slot 排序（1-50ms，等待整个 slot）
+let config = ClientConfig {
+    order_mode: OrderMode::Ordered,
+    order_timeout_ms: 100,
+    ..ClientConfig::default()
+};
+```
+
 ### 性能指标
 ```rust
-let mut config = ClientConfig::default();
-config.enable_metrics = true;
+let config = ClientConfig {
+    enable_metrics: true,
+    ..ClientConfig::default()
+};
 
 let grpc = YellowstoneGrpc::new_with_config(endpoint, token, config)?;
 ```
@@ -279,7 +347,8 @@ src/
 │   └── events.rs          # 事件定义
 ├── grpc/
 │   ├── client.rs          # Yellowstone gRPC 客户端
-│   └── types.rs           # 过滤器和配置类型
+│   ├── buffers.rs         # SlotBuffer 和 MicroBatchBuffer
+│   └── types.rs           # OrderMode、ClientConfig、过滤器
 ├── logs/
 │   ├── optimized_matcher.rs  # SIMD 日志检测
 │   ├── zero_copy_parser.rs   # 零拷贝解析
@@ -289,6 +358,8 @@ src/
 │   └── meteora_*.rs       # Meteora 解析器
 ├── instr/
 │   └── *.rs               # 指令解析器
+├── warmup/
+│   └── mod.rs             # 解析器预热（自动调用）
 └── lib.rs
 ```
 
@@ -375,9 +446,6 @@ MIT License
 ```bash
 # 运行测试
 cargo test
-
-# 运行性能示例
-sudo cargo run --example basic --release
 
 # 构建 release 二进制
 cargo build --release

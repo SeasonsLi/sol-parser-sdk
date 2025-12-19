@@ -5,6 +5,7 @@ pub mod core;
 pub mod instr;    // 指令解析器
 pub mod logs;     // 日志解析器
 pub mod utils;
+pub mod warmup;   // 预热模块
 
 // gRPC 模块 - 支持gRPC订阅和过滤
 pub mod grpc;
@@ -25,3 +26,6 @@ pub use core::{
     // 事件监听器
     EventListener, StreamingEventListener,
 };
+
+// 导出预热函数
+pub use warmup::warmup_parser;

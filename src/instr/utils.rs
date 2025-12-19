@@ -167,10 +167,16 @@ pub fn get_instruction_account_getter<'a>(
 ) -> Option<impl Fn(usize) -> Pubkey + 'a> {
     // 1. 获取指令的账户索引数组
     let accounts = if index.1 >= 0 {
-        // 内层指令
+        // 内层指令 - 使用二分查找优化 (inner_instructions 按 index 升序排列)
+        let outer_idx = index.0 as u32;
         meta.inner_instructions
-            .iter()
-            .find(|i| i.index == index.0 as u32)?
+            .binary_search_by_key(&outer_idx, |i| i.index)
+            .ok()
+            .and_then(|pos| meta.inner_instructions.get(pos))
+            .or_else(|| {
+                // 回退到线性查找（以防数据未排序）
+                meta.inner_instructions.iter().find(|i| i.index == outer_idx)
+            })?
             .instructions
             .get(index.1 as usize)?
             .accounts
@@ -208,6 +214,83 @@ pub fn get_instruction_account_getter<'a>(
             return read_pubkey_fast(key_bytes);
         }
         // 只读地址
+        let readonly_offset = writable_offset.saturating_sub(loaded_writable_addresses.len());
+        if let Some(key_bytes) = loaded_readonly_addresses.get(readonly_offset) {
+            return read_pubkey_fast(key_bytes);
+        }
+        Pubkey::default()
+    })
+}
+
+/// 预构建的 inner_instructions 索引，用于 O(1) 查找
+use std::collections::HashMap;
+
+/// InnerInstructions 索引缓存
+pub struct InnerInstructionsIndex<'a> {
+    /// outer_index -> &InnerInstructions
+    index_map: HashMap<u32, &'a yellowstone_grpc_proto::prelude::InnerInstructions>,
+}
+
+impl<'a> InnerInstructionsIndex<'a> {
+    /// 从 TransactionStatusMeta 构建索引
+    #[inline]
+    pub fn new(meta: &'a TransactionStatusMeta) -> Self {
+        let mut index_map = HashMap::with_capacity(meta.inner_instructions.len());
+        for inner in &meta.inner_instructions {
+            index_map.insert(inner.index, inner);
+        }
+        Self { index_map }
+    }
+
+    /// O(1) 查找 inner_instructions
+    #[inline]
+    pub fn get(&self, outer_index: u32) -> Option<&'a yellowstone_grpc_proto::prelude::InnerInstructions> {
+        self.index_map.get(&outer_index).copied()
+    }
+}
+
+/// 使用预构建索引的账户获取器（O(1) 查找）
+pub fn get_instruction_account_getter_indexed<'a>(
+    inner_index: &InnerInstructionsIndex<'a>,
+    transaction: &'a Option<Transaction>,
+    account_keys: Option<&'a Vec<Vec<u8>>>,
+    loaded_writable_addresses: &'a Vec<Vec<u8>>,
+    loaded_readonly_addresses: &'a Vec<Vec<u8>>,
+    index: &(i32, i32),
+) -> Option<impl Fn(usize) -> Pubkey + 'a> {
+    let accounts = if index.1 >= 0 {
+        // O(1) 查找
+        inner_index.get(index.0 as u32)?
+            .instructions
+            .get(index.1 as usize)?
+            .accounts
+            .as_slice()
+    } else {
+        transaction
+            .as_ref()?
+            .message
+            .as_ref()?
+            .instructions
+            .get(index.0 as usize)?
+            .accounts
+            .as_slice()
+    };
+
+    Some(move |acc_index: usize| -> Pubkey {
+        let account_index = match accounts.get(acc_index) {
+            Some(&idx) => idx as usize,
+            None => return Pubkey::default(),
+        };
+        let Some(keys) = account_keys else {
+            return Pubkey::default();
+        };
+        if let Some(key_bytes) = keys.get(account_index) {
+            return read_pubkey_fast(key_bytes);
+        }
+        let writable_offset = account_index.saturating_sub(keys.len());
+        if let Some(key_bytes) = loaded_writable_addresses.get(writable_offset) {
+            return read_pubkey_fast(key_bytes);
+        }
         let readonly_offset = writable_offset.saturating_sub(loaded_writable_addresses.len());
         if let Some(key_bytes) = loaded_readonly_addresses.get(readonly_offset) {
             return read_pubkey_fast(key_bytes);

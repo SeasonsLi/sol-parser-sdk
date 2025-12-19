@@ -6,6 +6,26 @@ use yellowstone_grpc_proto::geyser::{
     SubscribeRequestFilterAccountsFilterMemcmp,
 };
 
+/// 事件输出顺序模式
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum OrderMode {
+    /// 无序模式：收到即输出，超低延迟 (10-20μs)
+    #[default]
+    Unordered,
+    /// 有序模式：按 slot + tx_index 排序后输出
+    /// 同一 slot 内的交易会等待收齐后按 tx_index 排序
+    /// 延迟增加约 1-50ms（取决于 slot 内交易数量）
+    Ordered,
+    /// 流式有序模式：连续序列立即释放，低延迟 + 顺序保证
+    /// 只要收到从 0 开始的连续 tx_index 序列，立即释放
+    /// 延迟约 0.1-5ms，比 Ordered 低 5-50 倍
+    StreamingOrdered,
+    /// 微批次模式：极短时间窗口内收集事件，窗口结束后排序释放
+    /// 窗口大小由 micro_batch_us 配置（默认 100μs）
+    /// 延迟约 50-200μs，接近 Unordered 但保证顺序
+    MicroBatch,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientConfig {
     /// 是否启用性能监控
@@ -22,6 +42,14 @@ pub struct ClientConfig {
     pub keep_alive_interval_ms: u64,
     pub keep_alive_timeout_ms: u64,
     pub buffer_size: usize,
+    /// 事件输出顺序模式
+    pub order_mode: OrderMode,
+    /// 有序模式下，slot 超时时间（毫秒）
+    /// 超过此时间未收到新 slot 信号，强制输出当前缓冲的事件
+    pub order_timeout_ms: u64,
+    /// MicroBatch 模式下的时间窗口大小（微秒）
+    /// 默认 100μs，可根据网络状况调整
+    pub micro_batch_us: u64,
 }
 
 impl Default for ClientConfig {
@@ -37,6 +65,9 @@ impl Default for ClientConfig {
             keep_alive_interval_ms: 30000,
             keep_alive_timeout_ms: 5000,
             buffer_size: 8192,
+            order_mode: OrderMode::Unordered,
+            order_timeout_ms: 100,
+            micro_batch_us: 100, // 100μs 默认窗口
         }
     }
 }
@@ -54,6 +85,9 @@ impl ClientConfig {
             keep_alive_interval_ms: 10000,
             keep_alive_timeout_ms: 2000,
             buffer_size: 16384,
+            order_mode: OrderMode::Unordered,
+            order_timeout_ms: 50,
+            micro_batch_us: 50, // 50μs 更激进的窗口
         }
     }
 
@@ -69,6 +103,9 @@ impl ClientConfig {
             keep_alive_interval_ms: 60000,
             keep_alive_timeout_ms: 10000,
             buffer_size: 32768,
+            order_mode: OrderMode::Unordered,
+            order_timeout_ms: 200,
+            micro_batch_us: 200, // 200μs 高吞吐模式
         }
     }
 }

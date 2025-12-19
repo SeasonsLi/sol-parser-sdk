@@ -44,6 +44,14 @@
 - **SIMD-accelerated** pattern matching (memchr)
 - **Lock-free** ArrayQueue for event delivery
 
+### 🎚️ Flexible Order Modes
+| Mode | Latency | Description |
+|------|---------|-------------|
+| **Unordered** | 10-20μs | Immediate output, ultra-low latency |
+| **MicroBatch** | 50-200μs | Micro-batch ordering with time window |
+| **StreamingOrdered** | 0.1-5ms | Stream ordering with continuous sequence release |
+| **Ordered** | 1-50ms | Full slot ordering, wait for complete slot |
+
 ### 🚀 Optimization Highlights
 - ✅ **Zero heap allocation** for hot paths
 - ✅ **SIMD pattern matching** for all protocol detection
@@ -51,6 +59,7 @@
 - ✅ **Inline functions** with aggressive optimization
 - ✅ **Event type filtering** for targeted parsing
 - ✅ **Conditional Create detection** (only when needed)
+- ✅ **Multiple order modes** for latency vs ordering trade-off
 
 ---
 
@@ -69,27 +78,51 @@ Test parsing latency with the optimized example:
 
 ```bash
 # Run performance test (requires sudo for high-precision timing)
-sudo cargo run --example basic --release
+cargo run --example basic --release
+
+# PumpSwap events with MicroBatch ordering
+cargo run --example pumpswap_ordered --release
 
 # Expected output:
-# gRPC接收时间: 1234567890 μs
-# 事件接收时间: 1234567900 μs
-# 事件解析耗时: 10 μs  <-- Ultra-low latency!
+# gRPC recv time: 1234567890 μs
+# Event recv time: 1234567900 μs
+# Parse latency: 10 μs  <-- Ultra-low latency!
+
 ```
 
 **Why sudo?** The example uses `libc::clock_gettime(CLOCK_REALTIME)` for microsecond-precision timing, which may require elevated permissions on some systems.
 
+### Examples
+
+| Example | Description | Command |
+|---------|-------------|----------|
+| `basic` | Basic DEX event parsing with latency measurement | `cargo run --example basic --release` |
+| `pumpswap_ordered` | PumpSwap events with MicroBatch ordering | `cargo run --example pumpswap_ordered --release` |
+| `dynamic_subscription` | Dynamic filter updates without reconnecting | `cargo run --example dynamic_subscription --release` |
+
 ### Basic Usage
 
 ```rust
-use sol_parser_sdk::grpc::{YellowstoneGrpc, EventTypeFilter, EventType};
+use sol_parser_sdk::grpc::{YellowstoneGrpc, ClientConfig, OrderMode, EventTypeFilter, EventType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create gRPC client
+    // Create gRPC client with default config (Unordered mode)
     let grpc = YellowstoneGrpc::new(
         "https://solana-yellowstone-grpc.publicnode.com:443".to_string(),
         None,
+    )?;
+    
+    // Or with custom config for ordered events
+    let config = ClientConfig {
+        order_mode: OrderMode::MicroBatch,  // Low latency + ordering
+        micro_batch_us: 100,                // 100μs batch window
+        ..ClientConfig::default()
+    };
+    let grpc = YellowstoneGrpc::new_with_config(
+        "https://solana-yellowstone-grpc.publicnode.com:443".to_string(),
+        None,
+        config,
     )?;
 
     // Filter for PumpFun Trade events only (ultra-fast path)
@@ -261,10 +294,46 @@ grpc.update_subscription(
 ).await?;
 ```
 
+### Order Modes
+Choose the right balance between latency and ordering:
+
+```rust
+use sol_parser_sdk::grpc::{ClientConfig, OrderMode};
+
+// Ultra-low latency (no ordering guarantee)
+let config = ClientConfig {
+    order_mode: OrderMode::Unordered,
+    ..ClientConfig::default()
+};
+
+// Low latency with micro-batch ordering (50-200μs)
+let config = ClientConfig {
+    order_mode: OrderMode::MicroBatch,
+    micro_batch_us: 100,  // 100μs batch window
+    ..ClientConfig::default()
+};
+
+// Stream ordering with continuous sequence release (0.1-5ms)
+let config = ClientConfig {
+    order_mode: OrderMode::StreamingOrdered,
+    order_timeout_ms: 50,  // Timeout for incomplete sequences
+    ..ClientConfig::default()
+};
+
+// Full slot ordering (1-50ms, wait for complete slot)
+let config = ClientConfig {
+    order_mode: OrderMode::Ordered,
+    order_timeout_ms: 100,
+    ..ClientConfig::default()
+};
+```
+
 ### Performance Metrics
 ```rust
-let mut config = ClientConfig::default();
-config.enable_metrics = true;
+let config = ClientConfig {
+    enable_metrics: true,
+    ..ClientConfig::default()
+};
 
 let grpc = YellowstoneGrpc::new_with_config(endpoint, token, config)?;
 ```
@@ -279,7 +348,8 @@ src/
 │   └── events.rs          # Event definitions
 ├── grpc/
 │   ├── client.rs          # Yellowstone gRPC client
-│   └── types.rs           # Filter & config types
+│   ├── buffers.rs         # SlotBuffer & MicroBatchBuffer
+│   └── types.rs           # OrderMode, ClientConfig, filters
 ├── logs/
 │   ├── optimized_matcher.rs  # SIMD log detection
 │   ├── zero_copy_parser.rs   # Zero-copy parsing
@@ -289,6 +359,8 @@ src/
 │   └── meteora_*.rs       # Meteora parsers
 ├── instr/
 │   └── *.rs               # Instruction parsers
+├── warmup/
+│   └── mod.rs             # Parser warmup (auto-called)
 └── lib.rs
 ```
 
@@ -375,9 +447,6 @@ MIT License
 ```bash
 # Run tests
 cargo test
-
-# Run performance example
-sudo cargo run --example basic --release
 
 # Build release binary
 cargo build --release

@@ -1,3 +1,12 @@
+//! Yellowstone gRPC 客户端 - 超低延迟 DEX 事件订阅
+//!
+//! 支持多种事件输出模式：
+//! - Unordered: 10-20μs 极低延迟
+//! - MicroBatch: 50-200μs 微批次有序
+//! - StreamingOrdered: 0.1-5ms 流式有序
+//! - Ordered: 1-50ms 完全有序
+
+use super::buffers::{MicroBatchBuffer, SlotBuffer};
 use super::types::*;
 use crate::core::EventMetadata;
 use crate::instr::read_pubkey_fast;
@@ -12,6 +21,7 @@ use solana_sdk::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
+use tokio::time::{Duration, Instant};
 use tonic::transport::ClientTlsConfig;
 use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::prelude::*;
@@ -19,20 +29,19 @@ use yellowstone_grpc_proto::prelude::*;
 static PROGRAM_DATA_FINDER: Lazy<memmem::Finder> =
     Lazy::new(|| memmem::Finder::new(b"Program data: "));
 
+// ==================== YellowstoneGrpc 客户端 ====================
+
 #[derive(Clone)]
 pub struct YellowstoneGrpc {
     endpoint: String,
     token: Option<String>,
     config: ClientConfig,
-    /// 控制通道发送器，用于动态更新订阅
     control_tx: Arc<Mutex<Option<mpsc::Sender<SubscribeRequest>>>>,
 }
 
 impl YellowstoneGrpc {
-    pub fn new(
-        endpoint: String,
-        token: Option<String>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(endpoint: String, token: Option<String>) -> Result<Self, Box<dyn std::error::Error>> {
+        crate::warmup::warmup_parser();
         Ok(Self {
             endpoint,
             token,
@@ -46,10 +55,11 @@ impl YellowstoneGrpc {
         token: Option<String>,
         config: ClientConfig,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        crate::warmup::warmup_parser();
         Ok(Self { endpoint, token, config, control_tx: Arc::new(Mutex::new(None)) })
     }
 
-    /// 订阅DEX事件（零拷贝无锁队列）
+    /// 订阅 DEX 事件（自动重连）
     pub async fn subscribe_dex_events(
         &self,
         transaction_filters: Vec<TransactionFilter>,
@@ -58,126 +68,55 @@ impl YellowstoneGrpc {
     ) -> Result<Arc<ArrayQueue<DexEvent>>, Box<dyn std::error::Error>> {
         let queue = Arc::new(ArrayQueue::new(100_000));
         let queue_clone = Arc::clone(&queue);
-
         let self_clone = self.clone();
+
         tokio::spawn(async move {
-            // 带自动重连的订阅循环
-            let mut reconnect_delay_secs = 1u64;
-            let max_reconnect_delay_secs = 60u64;
-
+            let mut delay = 1u64;
             loop {
-                println!("🔄 尝试建立GRPC流连接...");
-
-                match self_clone
-                    .stream_to_queue(
-                        transaction_filters.clone(),
-                        account_filters.clone(),
-                        event_type_filter.clone(),
-                        queue_clone.clone(),
-                    )
-                    .await
-                {
-                    Ok(_) => {
-                        // 流正常结束（断开），准备重连
-                        println!("⚠️ GRPC流已断开，{}秒后重连...", reconnect_delay_secs);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs))
-                            .await;
-
-                        // 重连成功后重置延迟
-                        reconnect_delay_secs = 1;
-                    }
-                    Err(e) => {
-                        // 连接失败，指数退避重试
-                        println!("❌ GRPC连接失败: {} - {}秒后重试", e, reconnect_delay_secs);
-                        tokio::time::sleep(tokio::time::Duration::from_secs(reconnect_delay_secs))
-                            .await;
-
-                        // 指数退避，最大60秒
-                        reconnect_delay_secs =
-                            (reconnect_delay_secs * 2).min(max_reconnect_delay_secs);
-                    }
+                match self_clone.stream_events(&transaction_filters, &account_filters, &event_type_filter, &queue_clone).await {
+                    Ok(_) => delay = 1,
+                    Err(e) => println!("❌ gRPC error: {} - retry in {}s", e, delay),
                 }
+                tokio::time::sleep(Duration::from_secs(delay)).await;
+                delay = (delay * 2).min(60);
             }
         });
 
         Ok(queue)
     }
 
-    /// 动态更新订阅过滤器（无需重连）
+    /// 动态更新订阅过滤器
     pub async fn update_subscription(
         &self,
         transaction_filters: Vec<TransactionFilter>,
         account_filters: Vec<AccountFilter>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // 获取控制通道发送器
-        let control_sender = {
-            let control_guard = self.control_tx.lock().await;
-            control_guard.as_ref().ok_or("No active subscription to update")?.clone()
-        };
-
-        // 构建新的订阅请求
-        let mut transactions: HashMap<String, SubscribeRequestFilterTransactions> = HashMap::new();
-        for (i, filter) in transaction_filters.iter().enumerate() {
-            transactions.insert(
-                format!("transaction_filter_{}", i),
-                SubscribeRequestFilterTransactions {
-                    vote: Some(false),
-                    failed: Some(false),
-                    signature: None,
-                    account_include: filter.account_include.clone(),
-                    account_exclude: filter.account_exclude.clone(),
-                    account_required: filter.account_required.clone(),
-                },
-            );
-        }
-
-        let mut accounts: HashMap<String, SubscribeRequestFilterAccounts> = HashMap::new();
-        for (i, filter) in account_filters.iter().enumerate() {
-            accounts.insert(
-                format!("account_filter_{}", i),
-                SubscribeRequestFilterAccounts {
-                    account: filter.account.clone(),
-                    owner: filter.owner.clone(),
-                    filters: filter.filters.clone(),
-                    nonempty_txn_signature: None,
-                },
-            );
-        }
-
-        let request = SubscribeRequest {
-            slots: HashMap::new(),
-            accounts,
-            transactions,
-            transactions_status: HashMap::new(),
-            blocks: HashMap::new(),
-            blocks_meta: HashMap::new(),
-            entry: HashMap::new(),
-            commitment: Some(CommitmentLevel::Processed as i32),
-            accounts_data_slice: Vec::new(),
-            ping: None,
-            from_slot: None,
-        };
-
-        // 发送更新请求
-        control_sender.send(request).await.map_err(|e| format!("Failed to send update: {}", e))?;
-
+        let sender = self.control_tx.lock().await
+            .as_ref()
+            .ok_or("No active subscription")?
+            .clone();
+        
+        let request = build_subscribe_request(&transaction_filters, &account_filters);
+        sender.send(request).await.map_err(|e| e.to_string())?;
         Ok(())
     }
 
     pub async fn stop(&self) {
         println!("🛑 Stopping gRPC subscription...");
     }
-    async fn stream_to_queue(
+
+    // ==================== 核心事件流处理 ====================
+
+    async fn stream_events(
         &self,
-        transaction_filters: Vec<TransactionFilter>,
-        account_filters: Vec<AccountFilter>,
-        event_type_filter: Option<EventTypeFilter>,
-        queue: Arc<ArrayQueue<DexEvent>>,
+        tx_filters: &[TransactionFilter],
+        acc_filters: &[AccountFilter],
+        event_filter: &Option<EventTypeFilter>,
+        queue: &Arc<ArrayQueue<DexEvent>>,
     ) -> Result<(), String> {
-        println!("🚀 Starting Zero-Copy DEX event subscription...");
-
         let _ = rustls::crypto::ring::default_provider().install_default();
-
+        
+        // 构建客户端
         let mut builder = GeyserGrpcClient::build_from_shared(self.endpoint.clone())
             .map_err(|e| e.to_string())?
             .x_token(self.token.clone())
@@ -185,407 +124,400 @@ impl YellowstoneGrpc {
             .max_decoding_message_size(1024 * 1024 * 1024);
 
         if self.config.connection_timeout_ms > 0 {
-            builder = builder.connect_timeout(std::time::Duration::from_millis(
-                self.config.connection_timeout_ms,
-            ));
+            builder = builder.connect_timeout(Duration::from_millis(self.config.connection_timeout_ms));
         }
-
-        // 添加 TLS 配置
         if self.config.enable_tls {
-            let tls_config = ClientTlsConfig::new().with_native_roots();
-            builder = builder.tls_config(tls_config).map_err(|e| e.to_string())?;
+            builder = builder.tls_config(ClientTlsConfig::new().with_native_roots()).map_err(|e| e.to_string())?;
         }
 
-        println!("🔗 Connecting to gRPC endpoint: {}", self.endpoint);
-        println!("⏱️  Connection timeout: {}ms", self.config.connection_timeout_ms);
+        let mut client = builder.connect().await.map_err(|e| e.to_string())?;
+        let request = build_subscribe_request(tx_filters, acc_filters);
+        
+        let (subscribe_tx, mut stream) = client
+            .subscribe_with_request(Some(request))
+            .await
+            .map_err(|e| e.to_string())?;
 
-        let mut client = match builder.connect().await {
-            Ok(c) => {
-                println!("✅ Connection established");
-                c
-            }
-            Err(e) => {
-                let err_msg = e.to_string();
-                println!("❌ Connection failed: {:?}", err_msg);
-                return Err(err_msg);
-            }
-        };
-        println!("✅ Connected to Yellowstone gRPC");
+        self.print_mode_info();
 
-        println!("📝 Building subscription filters...");
-        let mut accounts: HashMap<String, SubscribeRequestFilterAccounts> = HashMap::new();
-        for (i, filter) in account_filters.iter().enumerate() {
-            let key = format!("account_filter_{}", i);
-            accounts.insert(
-                key,
-                SubscribeRequestFilterAccounts {
-                    account: filter.account.clone(),
-                    owner: filter.owner.clone(),
-                    filters: filter.filters.clone(),
-                    nonempty_txn_signature: None,
-                },
-            );
-        }
-
-        let mut transactions: HashMap<String, SubscribeRequestFilterTransactions> = HashMap::new();
-        for (i, filter) in transaction_filters.iter().enumerate() {
-            let key = format!("transaction_filter_{}", i);
-            transactions.insert(
-                key,
-                SubscribeRequestFilterTransactions {
-                    vote: Some(false),
-                    failed: Some(false),
-                    signature: None,
-                    account_include: filter.account_include.clone(),
-                    account_exclude: filter.account_exclude.clone(),
-                    account_required: filter.account_required.clone(),
-                },
-            );
-        }
-
-        let request = SubscribeRequest {
-            slots: HashMap::new(),
-            accounts,
-            transactions,
-            transactions_status: HashMap::new(),
-            blocks: HashMap::new(),
-            blocks_meta: HashMap::new(),
-            entry: HashMap::new(),
-            commitment: Some(CommitmentLevel::Processed as i32),
-            accounts_data_slice: Vec::new(),
-            ping: None,
-            from_slot: None,
-        };
-
-        println!("📡 Subscribing to stream...");
-        let (subscribe_tx, mut stream) =
-            client.subscribe_with_request(Some(request)).await.map_err(|e| e.to_string())?;
-        println!("✅ Subscribed successfully - Zero Copy Mode");
-        println!("👂 Listening for events...");
-
-        // 创建控制通道
+        // 设置控制通道
         let (control_tx, mut control_rx) = mpsc::channel::<SubscribeRequest>(100);
         *self.control_tx.lock().await = Some(control_tx);
-
-        // 使用 Arc<Mutex<>> 包装 subscribe_tx 以支持并发发送
         let subscribe_tx = Arc::new(Mutex::new(subscribe_tx));
-        let subscribe_tx_clone = Arc::clone(&subscribe_tx);
 
-        let mut msg_count = 0u64;
+        // 初始化缓冲区
+        let mut slot_buffer = SlotBuffer::new();
+        let mut micro_batch = MicroBatchBuffer::new();
+        let mut last_slot = 0u64;
+
+        let order_mode = self.config.order_mode;
+        let timeout_ms = self.config.order_timeout_ms;
+        let batch_us = self.config.micro_batch_us;
+        let check_interval = Duration::from_millis(timeout_ms / 2);
+        let mut next_check = Instant::now() + check_interval;
+
         loop {
-            tokio::select! {
-                message = stream.next() => {
-                    match message {
-                        Some(Ok(update_msg)) => {
-                            let block_time = update_msg.created_at.unwrap_or_default();
-                            let block_time_us = timestamp_to_microseconds(&block_time);
-                            msg_count += 1;
-                            // if msg_count % 100 == 0 {
-                            //     println!("📨 Received {} messages", msg_count);
-                            // }
-
-                            if let Some(update) = update_msg.update_oneof {
-                                let grpc_recv_us = unsafe {
-                                    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
-                                    libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
-                                    (ts.tv_sec as i64) * 1_000_000 + (ts.tv_nsec as i64) / 1_000
-                                };
-                                match update {
-                                    subscribe_update::UpdateOneof::Transaction(transaction_update) => {
-                                        Self::parse_transaction(
-                                            &transaction_update,
-                                            grpc_recv_us,
-                                            Some(block_time_us as i64),
-                                            &queue,
-                                            event_type_filter.as_ref(),
-                                        )
-                                        .await;
-                                    }
-                                    subscribe_update::UpdateOneof::Account(account_update) => {
-                                        Self::parse_account(
-                                            &account_update,
-                                            grpc_recv_us,
-                                            Some(block_time_us as i64),
-                                            &queue,
-                                            event_type_filter.as_ref(),
-                                        )
-                                        .await;
-                                    }
-                                    subscribe_update::UpdateOneof::Ping(_) => {
-                                        // 响应 ping 以保持连接活跃
-                                        if let Ok(mut tx) = subscribe_tx_clone.try_lock() {
-                                            let pong_request = SubscribeRequest {
-                                                ping: Some(SubscribeRequestPing { id: 1 }),
-                                                ..Default::default()
-                                            };
-                                            let _ = tx.send(pong_request).await;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                        Some(Err(e)) => {
-                            error!("Stream error: {:?}", e);
-                            println!("❌ Stream error: {:?}", e);
-                            break;
-                        }
-                        None => {
-                            println!("⚠️  Stream ended");
-                            break;
-                        }
-                    }
-                }
-                Some(update_request) = control_rx.recv() => {
-                    // 接收到动态订阅更新请求
-                    println!("🔄 Updating subscription filters dynamically...");
-                    if let Err(e) = subscribe_tx.lock().await.send(update_request).await {
-                        error!("Failed to send subscription update: {}", e);
-                        println!("❌ Failed to send subscription update: {}", e);
-                        break;
-                    }
-                    println!("✅ Subscription filters updated successfully");
-                }
-            }
-        }
-
-        println!("⚠️  Stream ended");
-
-        Ok(())
-    }
-
-    /// 解析账户事件
-    async fn parse_account(
-        account_update: &SubscribeUpdateAccount,
-        grpc_recv_us: i64,
-        block_time_us: Option<i64>,
-        queue: &Arc<ArrayQueue<DexEvent>>,
-        event_type_filter: Option<&EventTypeFilter>,
-    ) {
-        if let Some(account_info) = &account_update.account {
-            // 构建账户数据
-            let account_data = crate::accounts::AccountData {
-                pubkey: read_pubkey_fast(&account_info.pubkey),
-                executable: account_info.executable,
-                lamports: account_info.lamports,
-                owner: read_pubkey_fast(&account_info.owner),
-                rent_epoch: account_info.rent_epoch,
-                data: account_info.data.clone(),
-            };
-            // 构建元数据
-            let metadata = EventMetadata {
-                signature: Default::default(), // Account updates don't have signatures
-                slot: account_update.slot,
-                tx_index: 0,
-                block_time_us: block_time_us.unwrap_or(0),
-                grpc_recv_us,
-            };
-            // 使用新的统一账户解析器
-            if let Some(event) =
-                crate::accounts::parse_account_unified(&account_data, metadata, event_type_filter)
-            {
-                let _ = queue.push(event);
-            }
-        }
-    }
-
-    /// 解析交易事件
-    async fn parse_transaction(
-        transaction_update: &SubscribeUpdateTransaction,
-        grpc_recv_us: i64,
-        block_time_us: Option<i64>,
-        queue: &Arc<ArrayQueue<DexEvent>>,
-        event_type_filter: Option<&EventTypeFilter>,
-    ) {
-        if let Some(transaction_info) = &transaction_update.transaction {
-            // 从 transaction_info.index 获取交易索引
-            let tx_index = transaction_info.index;
-            let transaction = &transaction_info.transaction;
-            let mut sig_array = [0u8; 64];
-            sig_array.copy_from_slice(&transaction_info.signature);
-            let signature = solana_sdk::signature::Signature::from(sig_array);
-            if let Some(meta) = &transaction_info.meta {
-                let logs = &meta.log_messages;
-                // 解析 logs 事件
-                // pumpfun \ pumpswap
-                Self::parse_logs_events(
-                    meta,
-                    transaction,
-                    logs,
-                    signature,
-                    transaction_update.slot,
-                    tx_index,
-                    block_time_us,
-                    grpc_recv_us,
-                    queue,
-                    event_type_filter,
-                );
-                // 解析指令事件
-                // pumpfun/migrate
-                // metaora damm v2
-                Self::parse_transaction_events(
-                    meta,
-                    transaction,
-                    signature,
-                    transaction_update.slot,
-                    tx_index,
-                    block_time_us,
-                    grpc_recv_us,
-                    queue,
-                    event_type_filter,
-                );
-            }
-        }
-    }
-
-    /// 解析日志事件到队列
-    #[inline]
-    fn parse_logs_events(
-        meta: &TransactionStatusMeta,
-        transaction: &Option<yellowstone_grpc_proto::prelude::Transaction>,
-        logs: &[String],
-        signature: solana_sdk::signature::Signature,
-        slot: u64,
-        tx_index: u64,
-        block_time_us: Option<i64>,
-        grpc_recv_us: i64,
-        queue: &Arc<ArrayQueue<DexEvent>>,
-        event_type_filter: Option<&EventTypeFilter>,
-    ) {
-        // 优化: 先检查 filter，如果不需要 pumpfun，直接跳过昂贵的 detect 操作
-        let needs_pumpfun_check = event_type_filter.map(|f| f.includes_pumpfun()).unwrap_or(true);
-        let has_create =
-            needs_pumpfun_check && crate::logs::optimized_matcher::detect_pumpfun_create(logs);
-
-        // 外层指令索引
-        let mut outer_index = -1;
-        // 内层指令索引
-        let mut inner_index = -1;
-        // 记录每个程序的调用栈位置 - 只是为了查找【填充账户信息】的指令的位置（如果有更好的其他办法，后续可优化）
-        let mut program_invokes: HashMap<&str, Vec<(i32, i32)>> = HashMap::new();
-
-        for log in logs.iter() {
-            if let Some((program_id, depth)) =
-                crate::logs::optimized_matcher::parse_invoke_info(log)
-            {
-                if depth == 1 {
-                    // 外层指令
-                    inner_index = -1;
-                    outer_index += 1;
-                } else {
-                    // 内层指令
-                    inner_index += 1;
-                }
-                program_invokes.entry(program_id).or_default().push((outer_index, inner_index));
-            }
-
-            let log_bytes = log.as_bytes();
-
-            if PROGRAM_DATA_FINDER.find(log_bytes).is_none() {
+            // 超时检查
+            if self.check_timeout(order_mode, &mut slot_buffer, queue, timeout_ms, &mut next_check, check_interval) {
                 continue;
             }
 
-            if let Some(mut log_event) = crate::logs::parse_log(
-                log,
-                signature,
-                slot,
-                tx_index,
-                block_time_us,
-                grpc_recv_us,
-                event_type_filter,
-                has_create,
-            ) {
-                // 填充账户信息
-                crate::core::account_filler::fill_accounts_from_transaction_data(
-                    &mut log_event,
-                    meta,
-                    transaction,
-                    &program_invokes,
-                );
-                // 填充其他信息
-                crate::core::common_filler::fill_data(
-                    &mut log_event,
-                    meta,
-                    transaction,
-                    &program_invokes,
-                );
-                let _ = queue.push(log_event);
-            }
-        }
-    }
-
-    fn parse_transaction_events(
-        meta: &TransactionStatusMeta,
-        transaction: &Option<yellowstone_grpc_proto::prelude::Transaction>,
-        signature: solana_sdk::signature::Signature,
-        slot: u64,
-        tx_index: u64,
-        block_time_us: Option<i64>,
-        grpc_recv_us: i64,
-        queue: &Arc<ArrayQueue<DexEvent>>,
-        event_type_filter: Option<&EventTypeFilter>,
-    ) {
-        if let Some(_transaction) = transaction {
-            if let Some(message) = &_transaction.message {
-                // 索引器
-                let get_key = |index: usize| -> Option<&Vec<u8>> {
-                    let account_keys_len = message.account_keys.len();
-                    let writable_len = meta.loaded_writable_addresses.len();
-
-                    if index < account_keys_len {
-                        message.account_keys.get(index)
-                    } else if index < account_keys_len + writable_len {
-                        meta.loaded_writable_addresses.get(index - account_keys_len)
-                    } else {
-                        meta.loaded_readonly_addresses.get(index - account_keys_len - writable_len)
-                    }
-                };
-                // 静态空切片，避免重复分配
-                static EMPTY_ACCOUNTS: &[Pubkey] = &[];
-
-                // 记录每个程序的调用栈位置 - 只是为了查找【填充账户信息】的指令的位置（如果有更好的其他办法，后续可优化）
-                let mut program_invokes: HashMap<Pubkey, Vec<(i32, i32)>> = HashMap::new();
-                let mut outer_index = -1;
-                message.instructions.iter().for_each(|ix| {
-                    outer_index += 1;
-                    let program_id = get_key(ix.program_id_index as usize)
-                        .map_or(Pubkey::default(), |k| read_pubkey_fast(k));
-                    program_invokes.entry(program_id).or_default().push((outer_index, -1));
-                });
-                meta.inner_instructions.iter().for_each(|inner| {
-                    let mut inner_index = -1;
-                    inner.instructions.iter().for_each(|ix| {
-                        inner_index += 1;
-                        let program_id = get_key(ix.program_id_index as usize)
-                            .map_or(Pubkey::default(), |k| read_pubkey_fast(k));
-                        // 解析内部指令 (cpi log)
-                        if let Some(mut instr_event) = crate::instr::parse_instruction_unified(
-                            &ix.data,
-                            EMPTY_ACCOUNTS,
-                            signature,
-                            slot,
-                            tx_index,
-                            block_time_us,
-                            grpc_recv_us,
-                            event_type_filter,
-                            &program_id,
-                        ) {
-                            crate::core::account_filler::fill_accounts_with_owned_keys(
-                                &mut instr_event,
-                                meta,
-                                transaction,
-                                &program_invokes,
+            tokio::select! {
+                msg = stream.next() => {
+                    match msg {
+                        Some(Ok(update)) => {
+                            self.handle_update(
+                                update, order_mode, event_filter, queue,
+                                &mut slot_buffer, &mut micro_batch, &mut last_slot, batch_us
                             );
-                            let _ = queue.push(instr_event);
-                        } else {
-                            program_invokes
-                                .entry(program_id)
-                                .or_default()
-                                .push((inner.index as i32, inner_index));
                         }
-                    });
-                });
+                        Some(Err(e)) => {
+                            error!("Stream error: {:?}", e);
+                            self.flush_on_disconnect(order_mode, &mut slot_buffer, queue);
+                            return Err(e.to_string());
+                        }
+                        None => {
+                            self.flush_on_disconnect(order_mode, &mut slot_buffer, queue);
+                            return Ok(());
+                        }
+                    }
+                }
+                Some(req) = control_rx.recv() => {
+                    if let Err(e) = subscribe_tx.lock().await.send(req).await {
+                        return Err(e.to_string());
+                    }
+                }
             }
         }
     }
+
+    fn print_mode_info(&self) {
+        match self.config.order_mode {
+            OrderMode::Unordered => println!("✅ Unordered Mode (10-20μs)"),
+            OrderMode::Ordered => println!("✅ Ordered Mode (timeout={}ms)", self.config.order_timeout_ms),
+            OrderMode::StreamingOrdered => println!("✅ StreamingOrdered Mode (timeout={}ms)", self.config.order_timeout_ms),
+            OrderMode::MicroBatch => println!("✅ MicroBatch Mode (window={}μs)", self.config.micro_batch_us),
+        }
+    }
+
+    #[inline]
+    fn check_timeout(
+        &self,
+        mode: OrderMode,
+        buffer: &mut SlotBuffer,
+        queue: &Arc<ArrayQueue<DexEvent>>,
+        timeout_ms: u64,
+        next_check: &mut Instant,
+        interval: Duration,
+    ) -> bool {
+        if !matches!(mode, OrderMode::Ordered | OrderMode::StreamingOrdered) {
+            return false;
+        }
+        if Instant::now() < *next_check {
+            return false;
+        }
+        *next_check = Instant::now() + interval;
+        
+        if buffer.should_timeout(timeout_ms) {
+            let events = match mode {
+                OrderMode::StreamingOrdered => buffer.flush_streaming_timeout(),
+                _ => buffer.flush_all(),
+            };
+            for e in events { let _ = queue.push(e); }
+        }
+        false
+    }
+
+    fn flush_on_disconnect(&self, mode: OrderMode, buffer: &mut SlotBuffer, queue: &Arc<ArrayQueue<DexEvent>>) {
+        if matches!(mode, OrderMode::Ordered | OrderMode::StreamingOrdered) {
+            let events = match mode {
+                OrderMode::StreamingOrdered => buffer.flush_streaming_timeout(),
+                _ => buffer.flush_all(),
+            };
+            for e in events { let _ = queue.push(e); }
+        }
+    }
+
+    #[inline]
+    fn handle_update(
+        &self,
+        update_msg: SubscribeUpdate,
+        mode: OrderMode,
+        filter: &Option<EventTypeFilter>,
+        queue: &Arc<ArrayQueue<DexEvent>>,
+        slot_buf: &mut SlotBuffer,
+        micro_buf: &mut MicroBatchBuffer,
+        last_slot: &mut u64,
+        batch_us: u64,
+    ) {
+        let block_time_us = timestamp_to_microseconds(&update_msg.created_at.unwrap_or_default()) as i64;
+        let grpc_recv_us = get_timestamp_us();
+
+        let Some(update) = update_msg.update_oneof else { return };
+
+        match update {
+            subscribe_update::UpdateOneof::Transaction(tx) => {
+                self.handle_transaction(tx, mode, filter, queue, slot_buf, micro_buf, last_slot, batch_us, grpc_recv_us, block_time_us);
+            }
+            subscribe_update::UpdateOneof::Account(acc) => {
+                Self::handle_account(acc, filter, queue, grpc_recv_us, block_time_us);
+            }
+            _ => {}
+        }
+    }
+
+    #[inline]
+    fn handle_transaction(
+        &self,
+        tx: SubscribeUpdateTransaction,
+        mode: OrderMode,
+        filter: &Option<EventTypeFilter>,
+        queue: &Arc<ArrayQueue<DexEvent>>,
+        slot_buf: &mut SlotBuffer,
+        micro_buf: &mut MicroBatchBuffer,
+        last_slot: &mut u64,
+        batch_us: u64,
+        grpc_us: i64,
+        block_us: i64,
+    ) {
+        let slot = tx.slot;
+        
+        match mode {
+            OrderMode::Unordered => {
+                for e in parse_transaction_core(&tx, grpc_us, Some(block_us), filter.as_ref()) {
+                    let _ = queue.push(e);
+                }
+            }
+            OrderMode::Ordered => {
+                if slot > *last_slot && *last_slot > 0 {
+                    for e in slot_buf.flush_before(slot) { let _ = queue.push(e); }
+                }
+                *last_slot = slot;
+                for (idx, e) in parse_transaction_to_vec(&tx, grpc_us, Some(block_us), filter.as_ref()) {
+                    slot_buf.push(slot, idx, e);
+                }
+            }
+            OrderMode::StreamingOrdered => {
+                for (idx, e) in parse_transaction_to_vec(&tx, grpc_us, Some(block_us), filter.as_ref()) {
+                    for evt in slot_buf.push_streaming(slot, idx, e) {
+                        let _ = queue.push(evt);
+                    }
+                }
+            }
+            OrderMode::MicroBatch => {
+                for (idx, e) in parse_transaction_to_vec(&tx, grpc_us, Some(block_us), filter.as_ref()) {
+                    if micro_buf.push(slot, idx, e, grpc_us, batch_us) {
+                        for evt in micro_buf.flush() { let _ = queue.push(evt); }
+                    }
+                }
+            }
+        }
+    }
+
+    #[inline]
+    fn handle_account(
+        acc: SubscribeUpdateAccount,
+        filter: &Option<EventTypeFilter>,
+        queue: &Arc<ArrayQueue<DexEvent>>,
+        grpc_us: i64,
+        block_us: i64,
+    ) {
+        let Some(info) = acc.account else { return };
+        let data = crate::accounts::AccountData {
+            pubkey: read_pubkey_fast(&info.pubkey),
+            executable: info.executable,
+            lamports: info.lamports,
+            owner: read_pubkey_fast(&info.owner),
+            rent_epoch: info.rent_epoch,
+            data: info.data,
+        };
+        let meta = EventMetadata {
+            signature: Default::default(),
+            slot: acc.slot,
+            tx_index: 0,
+            block_time_us: block_us,
+            grpc_recv_us: grpc_us,
+        };
+        if let Some(e) = crate::accounts::parse_account_unified(&data, meta, filter.as_ref()) {
+            let _ = queue.push(e);
+        }
+    }
+}
+
+// ==================== 辅助函数 ====================
+
+#[inline(always)]
+fn get_timestamp_us() -> i64 {
+    unsafe {
+        let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
+        (ts.tv_sec as i64) * 1_000_000 + (ts.tv_nsec as i64) / 1_000
+    }
+}
+
+fn build_subscribe_request(tx_filters: &[TransactionFilter], acc_filters: &[AccountFilter]) -> SubscribeRequest {
+    let transactions = tx_filters.iter().enumerate().map(|(i, f)| {
+        (format!("tx_{}", i), SubscribeRequestFilterTransactions {
+            vote: Some(false),
+            failed: Some(false),
+            signature: None,
+            account_include: f.account_include.clone(),
+            account_exclude: f.account_exclude.clone(),
+            account_required: f.account_required.clone(),
+        })
+    }).collect();
+
+    let accounts = acc_filters.iter().enumerate().map(|(i, f)| {
+        (format!("acc_{}", i), SubscribeRequestFilterAccounts {
+            account: f.account.clone(),
+            owner: f.owner.clone(),
+            filters: f.filters.clone(),
+            nonempty_txn_signature: None,
+        })
+    }).collect();
+
+    SubscribeRequest {
+        slots: HashMap::new(),
+        accounts,
+        transactions,
+        transactions_status: HashMap::new(),
+        blocks: HashMap::new(),
+        blocks_meta: HashMap::new(),
+        entry: HashMap::new(),
+        commitment: Some(CommitmentLevel::Processed as i32),
+        accounts_data_slice: Vec::new(),
+        ping: None,
+        from_slot: None,
+    }
+}
+
+// ==================== 交易解析 ====================
+
+#[inline]
+fn parse_transaction_to_vec(
+    tx: &SubscribeUpdateTransaction,
+    grpc_us: i64,
+    block_us: Option<i64>,
+    filter: Option<&EventTypeFilter>,
+) -> Vec<(u64, DexEvent)> {
+    let idx = tx.transaction.as_ref().map(|t| t.index).unwrap_or(0);
+    parse_transaction_core(tx, grpc_us, block_us, filter)
+        .into_iter()
+        .map(|e| (idx, e))
+        .collect()
+}
+
+#[inline]
+fn parse_transaction_core(
+    tx: &SubscribeUpdateTransaction,
+    grpc_us: i64,
+    block_us: Option<i64>,
+    filter: Option<&EventTypeFilter>,
+) -> Vec<DexEvent> {
+    let Some(info) = &tx.transaction else { return Vec::new() };
+    let Some(meta) = &info.meta else { return Vec::new() };
+
+    let sig = extract_signature(&info.signature);
+    let slot = tx.slot;
+    let idx = info.index;
+
+    // 并行解析 logs 和 instructions
+    let (log_events, instr_events) = rayon::join(
+        || parse_logs(meta, &info.transaction, &meta.log_messages, sig, slot, idx, block_us, grpc_us, filter),
+        || parse_instructions(meta, &info.transaction, sig, slot, idx, block_us, grpc_us, filter),
+    );
+
+    let mut result = Vec::with_capacity(log_events.len() + instr_events.len());
+    result.extend(log_events);
+    result.extend(instr_events);
+    result
+}
+
+#[inline(always)]
+fn extract_signature(bytes: &[u8]) -> solana_sdk::signature::Signature {
+    let mut arr = [0u8; 64];
+    arr.copy_from_slice(bytes);
+    solana_sdk::signature::Signature::from(arr)
+}
+
+#[inline]
+fn parse_logs(
+    meta: &TransactionStatusMeta,
+    transaction: &Option<yellowstone_grpc_proto::prelude::Transaction>,
+    logs: &[String],
+    sig: solana_sdk::signature::Signature,
+    slot: u64,
+    tx_idx: u64,
+    block_us: Option<i64>,
+    grpc_us: i64,
+    filter: Option<&EventTypeFilter>,
+) -> Vec<DexEvent> {
+    let needs_pumpfun = filter.map(|f| f.includes_pumpfun()).unwrap_or(true);
+    let has_create = needs_pumpfun && crate::logs::optimized_matcher::detect_pumpfun_create(logs);
+
+    let mut outer_idx: i32 = -1;
+    let mut inner_idx: i32 = -1;
+    let mut invokes: HashMap<&str, Vec<(i32, i32)>> = HashMap::with_capacity(8);
+    let mut result = Vec::with_capacity(4);
+
+    for log in logs {
+        if let Some((pid, depth)) = crate::logs::optimized_matcher::parse_invoke_info(log) {
+            if depth == 1 { inner_idx = -1; outer_idx += 1; } else { inner_idx += 1; }
+            invokes.entry(pid).or_default().push((outer_idx, inner_idx));
+        }
+
+        if PROGRAM_DATA_FINDER.find(log.as_bytes()).is_none() { continue; }
+
+        if let Some(mut e) = crate::logs::parse_log(log, sig, slot, tx_idx, block_us, grpc_us, filter, has_create) {
+            crate::core::account_filler::fill_accounts_from_transaction_data(&mut e, meta, transaction, &invokes);
+            crate::core::common_filler::fill_data(&mut e, meta, transaction, &invokes);
+            result.push(e);
+        }
+    }
+    result
+}
+
+#[inline]
+fn parse_instructions(
+    meta: &TransactionStatusMeta,
+    transaction: &Option<yellowstone_grpc_proto::prelude::Transaction>,
+    sig: solana_sdk::signature::Signature,
+    slot: u64,
+    tx_idx: u64,
+    block_us: Option<i64>,
+    grpc_us: i64,
+    filter: Option<&EventTypeFilter>,
+) -> Vec<DexEvent> {
+    let Some(tx) = transaction else { return Vec::new() };
+    let Some(msg) = &tx.message else { return Vec::new() };
+
+    let keys_len = msg.account_keys.len();
+    let writable_len = meta.loaded_writable_addresses.len();
+    let get_key = |i: usize| -> Option<&Vec<u8>> {
+        if i < keys_len { msg.account_keys.get(i) }
+        else if i < keys_len + writable_len { meta.loaded_writable_addresses.get(i - keys_len) }
+        else { meta.loaded_readonly_addresses.get(i - keys_len - writable_len) }
+    };
+
+    static EMPTY: &[Pubkey] = &[];
+    let mut invokes: HashMap<Pubkey, Vec<(i32, i32)>> = HashMap::with_capacity(8);
+    let mut result = Vec::with_capacity(4);
+
+    for (i, ix) in msg.instructions.iter().enumerate() {
+        let pid = get_key(ix.program_id_index as usize).map_or(Pubkey::default(), |k| read_pubkey_fast(k));
+        invokes.entry(pid).or_default().push((i as i32, -1));
+    }
+
+    for inner in &meta.inner_instructions {
+        for (j, ix) in inner.instructions.iter().enumerate() {
+            let pid = get_key(ix.program_id_index as usize).map_or(Pubkey::default(), |k| read_pubkey_fast(k));
+            if let Some(mut e) = crate::instr::parse_instruction_unified(&ix.data, EMPTY, sig, slot, tx_idx, block_us, grpc_us, filter, &pid) {
+                crate::core::account_filler::fill_accounts_with_owned_keys(&mut e, meta, transaction, &invokes);
+                result.push(e);
+            } else {
+                invokes.entry(pid).or_default().push((inner.index as i32, j as i32));
+            }
+        }
+    }
+    result
 }

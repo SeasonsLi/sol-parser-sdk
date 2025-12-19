@@ -6,16 +6,20 @@
 //! - 账户和交易过滤
 //! - 多协议支持（PumpFun, Bonk, Raydium等）
 
+pub mod buffers;
 pub mod client;
-pub mod types;
 pub mod config;
+pub mod event_parser;
 pub mod filter;
 pub mod program_ids;
-pub mod event_parser;
+pub mod types;
 
-// 重新导出主要API，保持兼容性
+// 重新导出主要API
 pub use client::YellowstoneGrpc;
-pub use types::{ClientConfig, Protocol, EventType as StreamingEventType, TransactionFilter, AccountFilter, EventTypeFilter, SlotFilter};
+pub use types::{
+    AccountFilter, ClientConfig, EventType as StreamingEventType, EventTypeFilter, OrderMode,
+    Protocol, SlotFilter, TransactionFilter,
+};
 
 // 事件解析器重新导出
 pub use event_parser::*;
