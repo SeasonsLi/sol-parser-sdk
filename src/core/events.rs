@@ -101,8 +101,10 @@ pub struct PumpFunTradeEvent {
     pub total_claimed_tokens: u64,
     pub current_sol_volume: u64,
     pub last_update_timestamp: i64,
+    /// Instruction name: "buy" | "sell" | "buy_exact_sol_in"
+    pub ix_name: String,
 
-    // === 指令参数字段 (暂时注释，以后可能会用到，AI不要删除) ===
+    // === Instruction parameter fields (reserved for future use, DO NOT delete) ===
     // pub amount: u64,                     // buy/sell.args.amount
     // pub max_sol_cost: u64,               // buy.args.maxSolCost
     // pub min_sol_output: u64,             // sell.args.minSolOutput
@@ -143,8 +145,8 @@ pub struct PumpFunMigrateEvent {
     // pub pool_quote_token_account: Pubkey,
 }
 
-/// PumpFun Create Token Event - 基于IDL CreateEvent定义
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// PumpFun Create Token Event - Based on IDL CreateEvent definition
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpFunCreateTokenEvent {
     pub metadata: EventMetadata,
     // IDL CreateEvent 字段
@@ -163,6 +165,36 @@ pub struct PumpFunCreateTokenEvent {
 
     pub token_program: Pubkey,
     pub is_mayhem_mode: bool,
+}
+
+/// PumpSwap Trade Event - Unified trade event from IDL TradeEvent
+/// Produced by: buy, sell, buy_exact_sol_in instructions
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PumpSwapTradeEvent {
+    pub metadata: EventMetadata,
+    // === IDL TradeEvent fields ===
+    pub mint: Pubkey,
+    pub sol_amount: u64,
+    pub token_amount: u64,
+    pub is_buy: bool,
+    pub user: Pubkey,
+    pub timestamp: i64,
+    pub virtual_sol_reserves: u64,
+    pub virtual_token_reserves: u64,
+    pub real_sol_reserves: u64,
+    pub real_token_reserves: u64,
+    pub fee_recipient: Pubkey,
+    pub fee_basis_points: u64,
+    pub fee: u64,
+    pub creator: Pubkey,
+    pub creator_fee_basis_points: u64,
+    pub creator_fee: u64,
+    pub track_volume: bool,
+    pub total_unclaimed_tokens: u64,
+    pub total_claimed_tokens: u64,
+    pub current_sol_volume: u64,
+    pub last_update_timestamp: i64,
+    pub ix_name: String, // "buy" | "sell" | "buy_exact_sol_in"
 }
 
 /// PumpSwap Buy Event
@@ -255,7 +287,7 @@ pub struct PumpSwapSellEvent {
 }
 
 /// PumpSwap Create Pool Event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapCreatePoolEvent {
     pub metadata: EventMetadata,
     pub timestamp: i64,
@@ -313,8 +345,8 @@ pub struct PumpSwapPoolCreated {
 //     pub is_token_a_to_b: bool,
 // }
 
-/// PumpSwap Liquidity Added Event - 指令解析版本
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// PumpSwap Liquidity Added Event - Instruction parsing version
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapLiquidityAdded {
     pub metadata: EventMetadata,
     pub timestamp: i64,
@@ -335,8 +367,8 @@ pub struct PumpSwapLiquidityAdded {
     pub user_pool_token_account: Pubkey,
 }
 
-/// PumpSwap Liquidity Removed Event - 指令解析版本
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// PumpSwap Liquidity Removed Event - Instruction parsing version
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PumpSwapLiquidityRemoved {
     pub metadata: EventMetadata,
     pub timestamp: i64,
@@ -1403,8 +1435,9 @@ pub enum DexEvent {
     PumpFunMigrate(PumpFunMigrateEvent),    // - 已对接
 
     // PumpSwap 事件
-    PumpSwapBuy(PumpSwapBuyEvent),                      // - 已对接
-    PumpSwapSell(PumpSwapSellEvent),                    // - 已对接
+    PumpSwapTrade(PumpSwapTradeEvent),                   // - 已对接 (buy/sell/buy_exact_sol_in)
+    PumpSwapBuy(PumpSwapBuyEvent),                      // - 已对接 (legacy)
+    PumpSwapSell(PumpSwapSellEvent),                    // - 已对接 (legacy)
     PumpSwapCreatePool(PumpSwapCreatePoolEvent),        // - 已对接
     PumpSwapLiquidityAdded(PumpSwapLiquidityAdded),     // - 已对接
     PumpSwapLiquidityRemoved(PumpSwapLiquidityRemoved), // - 已对接

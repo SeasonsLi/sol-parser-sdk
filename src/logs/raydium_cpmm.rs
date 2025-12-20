@@ -68,6 +68,169 @@ fn parse_structured_log(
     }
 }
 
+// =============================================================================
+// Public from_data parsers - Accept pre-decoded data, eliminate double decode
+// =============================================================================
+
+/// Parse Raydium CPMM SwapBaseIn event from pre-decoded data
+#[inline(always)]
+pub fn parse_swap_base_in_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let _user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let amount_in = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let _minimum_amount_out = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount_out = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let is_base_input = read_bool(data, offset)?;
+
+    Some(DexEvent::RaydiumCpmmSwap(RaydiumCpmmSwapEvent {
+        metadata,
+        pool_id: pool_state,
+        input_vault_before: 0,
+        output_vault_before: 0,
+        input_amount: amount_in,
+        output_amount: amount_out,
+        input_transfer_fee: 0,
+        output_transfer_fee: 0,
+        base_input: is_base_input,
+    }))
+}
+
+/// Parse Raydium CPMM SwapBaseOut event from pre-decoded data
+#[inline(always)]
+pub fn parse_swap_base_out_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let _user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let _maximum_amount_in = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount_out = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount_in = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let is_base_output = read_bool(data, offset)?;
+
+    Some(DexEvent::RaydiumCpmmSwap(RaydiumCpmmSwapEvent {
+        metadata,
+        pool_id: pool_state,
+        input_vault_before: 0,
+        output_vault_before: 0,
+        input_amount: amount_in,
+        output_amount: amount_out,
+        input_transfer_fee: 0,
+        output_transfer_fee: 0,
+        base_input: !is_base_output,
+    }))
+}
+
+/// Parse Raydium CPMM CreatePool event from pre-decoded data
+#[inline(always)]
+pub fn parse_create_pool_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let _token_0_mint = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let _token_1_mint = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let creator = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let initial_amount_0 = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let initial_amount_1 = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumCpmmInitialize(RaydiumCpmmInitializeEvent {
+        metadata,
+        pool: pool_state,
+        creator,
+        init_amount0: initial_amount_0,
+        init_amount1: initial_amount_1,
+    }))
+}
+
+/// Parse Raydium CPMM Deposit event from pre-decoded data
+#[inline(always)]
+pub fn parse_deposit_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let lp_token_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_0_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_1_amount = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumCpmmDeposit(RaydiumCpmmDepositEvent {
+        metadata,
+        pool: pool_state,
+        user,
+        lp_token_amount,
+        token0_amount: token_0_amount,
+        token1_amount: token_1_amount,
+    }))
+}
+
+/// Parse Raydium CPMM Withdraw event from pre-decoded data
+#[inline(always)]
+pub fn parse_withdraw_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let lp_token_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_0_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_1_amount = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumCpmmWithdraw(RaydiumCpmmWithdrawEvent {
+        metadata,
+        pool: pool_state,
+        user,
+        lp_token_amount,
+        token0_amount: token_0_amount,
+        token1_amount: token_1_amount,
+    }))
+}
+
 /// 解析 Base In 交换事件
 fn parse_swap_base_in_event(
     data: &[u8],

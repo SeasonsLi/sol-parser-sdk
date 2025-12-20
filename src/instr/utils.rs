@@ -133,12 +133,28 @@ pub fn calculate_price_impact_bps(amount_in: u64, amount_out: u64, expected_out:
     impact.min(10000) as u16
 }
 
-/// 从指令数据中读取字节数组
+/// Read bytes from instruction data
 pub fn read_bytes(data: &[u8], offset: usize, length: usize) -> Option<&[u8]> {
     if data.len() < offset + length {
         return None;
     }
     Some(&data[offset..offset + length])
+}
+
+/// Read string with 4-byte length prefix (Borsh format)
+/// Returns (string slice, total bytes consumed including length prefix)
+#[inline]
+pub fn read_str_unchecked(data: &[u8], offset: usize) -> Option<(&str, usize)> {
+    if data.len() < offset + 4 {
+        return None;
+    }
+    let len = u32::from_le_bytes(data[offset..offset + 4].try_into().ok()?) as usize;
+    if data.len() < offset + 4 + len {
+        return None;
+    }
+    let string_bytes = &data[offset + 4..offset + 4 + len];
+    let s = std::str::from_utf8(string_bytes).ok()?;
+    Some((s, 4 + len))
 }
 
 /// 从指令数据中读取u64向量（简化版本）

@@ -427,3 +427,155 @@ fn parse_collect_fee_from_text(
         amount_1: extract_number_from_text(log, "amount_1").unwrap_or(10_000),
     }))
 }
+
+// ============================================================================
+// Public API for optimized parsing from pre-decoded data
+// These functions accept already-decoded data (without discriminator)
+// ============================================================================
+
+/// Parse Raydium CLMM Swap event from pre-decoded data
+#[inline(always)]
+pub fn parse_swap_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let _amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let _other_amount_threshold = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let sqrt_price_limit_x64 = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let is_base_input = read_bool(data, offset)?;
+
+    Some(DexEvent::RaydiumClmmSwap(RaydiumClmmSwapEvent {
+        metadata,
+        pool_state,
+        sender: user,
+        token_account_0: Pubkey::default(),
+        token_account_1: Pubkey::default(),
+        amount_0: 0,
+        transfer_fee_0: 0,
+        amount_1: 0,
+        transfer_fee_1: 0,
+        zero_for_one: is_base_input,
+        sqrt_price_x64: sqrt_price_limit_x64,
+        liquidity: 0,
+        tick: 0,
+    }))
+}
+
+/// Parse Raydium CLMM IncreaseLiquidity event from pre-decoded data
+#[inline(always)]
+pub fn parse_increase_liquidity_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let liquidity = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let amount0_max = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount1_max = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumClmmIncreaseLiquidity(RaydiumClmmIncreaseLiquidityEvent {
+        metadata,
+        pool,
+        user,
+        liquidity,
+        amount0_max,
+        amount1_max,
+    }))
+}
+
+/// Parse Raydium CLMM DecreaseLiquidity event from pre-decoded data
+#[inline(always)]
+pub fn parse_decrease_liquidity_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let liquidity = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let amount0_min = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount1_min = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumClmmDecreaseLiquidity(RaydiumClmmDecreaseLiquidityEvent {
+        metadata,
+        pool,
+        user,
+        liquidity,
+        amount0_min,
+        amount1_min,
+    }))
+}
+
+/// Parse Raydium CLMM CreatePool event from pre-decoded data
+#[inline(always)]
+pub fn parse_create_pool_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let creator = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let sqrt_price_x64 = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let open_time = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumClmmCreatePool(RaydiumClmmCreatePoolEvent {
+        metadata,
+        pool,
+        creator,
+        sqrt_price_x64,
+        open_time,
+    }))
+}
+
+/// Parse Raydium CLMM CollectFee event from pre-decoded data
+#[inline(always)]
+pub fn parse_collect_fee_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let pool_state = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let position_nft_mint = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let amount_0 = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount_1 = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumClmmCollectFee(RaydiumClmmCollectFeeEvent {
+        metadata,
+        pool_state,
+        position_nft_mint,
+        amount_0,
+        amount_1,
+    }))
+}

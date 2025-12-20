@@ -385,6 +385,62 @@ impl EventTypeFilter {
         }
         true
     }
+
+    /// Check if PumpSwap protocol events are included in the filter
+    #[inline]
+    pub fn includes_pumpswap(&self) -> bool {
+        if let Some(ref include_only) = self.include_only {
+            return include_only.iter().any(|t| {
+                matches!(
+                    t,
+                    EventType::PumpSwapBuy
+                        | EventType::PumpSwapSell
+                        | EventType::PumpSwapCreatePool
+                        | EventType::PumpSwapLiquidityAdded
+                        | EventType::PumpSwapLiquidityRemoved
+                )
+            });
+        }
+        if let Some(ref exclude_types) = self.exclude_types {
+            return !exclude_types.iter().any(|t| {
+                matches!(
+                    t,
+                    EventType::PumpSwapBuy
+                        | EventType::PumpSwapSell
+                        | EventType::PumpSwapCreatePool
+                        | EventType::PumpSwapLiquidityAdded
+                        | EventType::PumpSwapLiquidityRemoved
+                )
+            });
+        }
+        true
+    }
+
+    /// Check if Raydium Launchpad (Bonk) events are included in the filter
+    #[inline]
+    pub fn includes_raydium_launchpad(&self) -> bool {
+        if let Some(ref include_only) = self.include_only {
+            return include_only.iter().any(|t| {
+                matches!(
+                    t,
+                    EventType::BonkTrade
+                        | EventType::BonkPoolCreate
+                        | EventType::BonkMigrateAmm
+                )
+            });
+        }
+        if let Some(ref exclude_types) = self.exclude_types {
+            return !exclude_types.iter().any(|t| {
+                matches!(
+                    t,
+                    EventType::BonkTrade
+                        | EventType::BonkPoolCreate
+                        | EventType::BonkMigrateAmm
+                )
+            });
+        }
+        true
+    }
 }
 
 #[derive(Debug, Clone)]

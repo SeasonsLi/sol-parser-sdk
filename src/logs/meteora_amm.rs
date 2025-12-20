@@ -62,6 +62,135 @@ fn parse_structured_log(
     }
 }
 
+// =============================================================================
+// Public from_data parsers - Accept pre-decoded data, eliminate double decode
+// =============================================================================
+
+/// Parse Meteora AMM Swap event from pre-decoded data
+#[inline(always)]
+pub fn parse_swap_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let in_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let out_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let trade_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let admin_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let host_fee = read_u64_le(data, offset)?;
+
+    Some(DexEvent::MeteoraPoolsSwap(MeteoraPoolsSwapEvent {
+        metadata,
+        in_amount,
+        out_amount,
+        trade_fee,
+        admin_fee,
+        host_fee,
+    }))
+}
+
+/// Parse Meteora AMM AddLiquidity event from pre-decoded data
+#[inline(always)]
+pub fn parse_add_liquidity_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let lp_mint_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_a_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_amount = read_u64_le(data, offset)?;
+
+    Some(DexEvent::MeteoraPoolsAddLiquidity(MeteoraPoolsAddLiquidityEvent {
+        metadata,
+        lp_mint_amount,
+        token_a_amount,
+        token_b_amount,
+    }))
+}
+
+/// Parse Meteora AMM RemoveLiquidity event from pre-decoded data
+#[inline(always)]
+pub fn parse_remove_liquidity_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let lp_unmint_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_a_out_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_out_amount = read_u64_le(data, offset)?;
+
+    Some(DexEvent::MeteoraPoolsRemoveLiquidity(MeteoraPoolsRemoveLiquidityEvent {
+        metadata,
+        lp_unmint_amount,
+        token_a_out_amount,
+        token_b_out_amount,
+    }))
+}
+
+/// Parse Meteora AMM BootstrapLiquidity event from pre-decoded data
+#[inline(always)]
+pub fn parse_bootstrap_liquidity_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let lp_mint_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_a_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let pool = read_pubkey(data, offset)?;
+
+    Some(DexEvent::MeteoraPoolsBootstrapLiquidity(MeteoraPoolsBootstrapLiquidityEvent {
+        metadata,
+        lp_mint_amount,
+        token_a_amount,
+        token_b_amount,
+        pool,
+    }))
+}
+
+/// Parse Meteora AMM PoolCreated event from pre-decoded data
+#[inline(always)]
+pub fn parse_pool_created_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let lp_mint = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let token_a_mint = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let token_b_mint = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let pool_type = read_u8(data, offset)?;
+    offset += 1;
+
+    let pool = read_pubkey(data, offset)?;
+
+    Some(DexEvent::MeteoraPoolsPoolCreated(MeteoraPoolsPoolCreatedEvent {
+        metadata,
+        lp_mint,
+        token_a_mint,
+        token_b_mint,
+        pool_type,
+        pool,
+    }))
+}
+
 /// 解析 Swap 事件
 fn parse_swap_event(
     data: &[u8],

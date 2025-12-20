@@ -8,7 +8,7 @@ pub mod meteora_dlmm;
 pub mod orca_whirlpool;
 pub mod program_ids;
 pub mod pump_amm;
-pub mod pumpfun;
+pub mod pump;
 pub mod raydium_amm;
 pub mod raydium_clmm;
 pub mod raydium_cpmm;
@@ -19,7 +19,7 @@ use crate::logs::perf_hints::unlikely;
 
 // 重新导出主要解析函数
 pub use meteora_damm::parse_instruction as parse_meteora_damm_instruction;
-pub use pumpfun::parse_instruction as parse_pumpfun_instruction;
+pub use pump::parse_instruction as parse_pumpfun_instruction;
 
 // 重新导出工具函数
 pub use utils::*;

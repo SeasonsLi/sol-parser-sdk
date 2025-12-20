@@ -1,6 +1,11 @@
-//! 日志解析器模块
+//! Log parser module
 //!
-//! 包含所有 DEX 协议的日志解析器实现
+//! Contains log parsers for all DEX protocols
+
+// Allow dead code for fallback text parsers (kept for future use)
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 
 pub mod meteora_amm;
 pub mod meteora_damm;
@@ -9,7 +14,7 @@ pub mod optimized_matcher;
 pub mod orca_whirlpool;
 pub mod perf_hints;
 pub mod pump_amm;
-pub mod pumpfun;
+pub mod pump;
 pub mod raydium_amm;
 pub mod raydium_clmm;
 pub mod raydium_cpmm;
@@ -27,7 +32,7 @@ pub use meteora_damm::parse_log as parse_meteora_damm_log;
 pub use meteora_dlmm::parse_log as parse_meteora_dlmm_log;
 pub use orca_whirlpool::parse_log as parse_orca_whirlpool_log;
 pub use pump_amm::parse_log as parse_pump_amm_log;
-pub use pumpfun::parse_log as parse_pumpfun_log;
+pub use pump::parse_log as parse_pumpfun_log;
 pub use raydium_amm::parse_log as parse_raydium_amm_log;
 pub use raydium_clmm::parse_log as parse_raydium_clmm_log;
 pub use raydium_cpmm::parse_log as parse_raydium_cpmm_log;

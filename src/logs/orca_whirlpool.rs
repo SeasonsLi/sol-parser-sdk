@@ -3,6 +3,7 @@
 //! 解析 Orca Whirlpool 程序的日志事件
 
 use solana_sdk::signature::Signature;
+use solana_sdk::pubkey::Pubkey;
 use crate::core::events::*;
 use super::utils::*;
 
@@ -52,6 +53,198 @@ fn parse_structured_log(
         },
         _ => None,
     }
+}
+
+// =============================================================================
+// Public from_data parsers - Accept pre-decoded data, eliminate double decode
+// =============================================================================
+
+/// Parse Orca Whirlpool Traded (Swap) event from pre-decoded data
+#[inline(always)]
+pub fn parse_traded_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let whirlpool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let a_to_b = read_bool(data, offset)?;
+    offset += 1;
+
+    let pre_sqrt_price = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let post_sqrt_price = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let input_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let output_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let input_transfer_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let output_transfer_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let lp_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let protocol_fee = read_u64_le(data, offset)?;
+
+    Some(DexEvent::OrcaWhirlpoolSwap(OrcaWhirlpoolSwapEvent {
+        metadata,
+        whirlpool,
+        a_to_b,
+        pre_sqrt_price,
+        post_sqrt_price,
+        input_amount,
+        output_amount,
+        input_transfer_fee,
+        output_transfer_fee,
+        lp_fee,
+        protocol_fee,
+    }))
+}
+
+/// Parse Orca Whirlpool LiquidityIncreased event from pre-decoded data
+#[inline(always)]
+pub fn parse_liquidity_increased_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let whirlpool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let position = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let tick_lower_index = read_i32_le(data, offset)?;
+    offset += 4;
+
+    let tick_upper_index = read_i32_le(data, offset)?;
+    offset += 4;
+
+    let liquidity = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let token_a_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_a_transfer_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_transfer_fee = read_u64_le(data, offset)?;
+
+    Some(DexEvent::OrcaWhirlpoolLiquidityIncreased(OrcaWhirlpoolLiquidityIncreasedEvent {
+        metadata,
+        whirlpool,
+        position,
+        tick_lower_index,
+        tick_upper_index,
+        liquidity,
+        token_a_amount,
+        token_b_amount,
+        token_a_transfer_fee,
+        token_b_transfer_fee,
+    }))
+}
+
+/// Parse Orca Whirlpool LiquidityDecreased event from pre-decoded data
+#[inline(always)]
+pub fn parse_liquidity_decreased_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let whirlpool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let position = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let tick_lower_index = read_i32_le(data, offset)?;
+    offset += 4;
+
+    let tick_upper_index = read_i32_le(data, offset)?;
+    offset += 4;
+
+    let liquidity = read_u128_le(data, offset)?;
+    offset += 16;
+
+    let token_a_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_a_transfer_fee = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let token_b_transfer_fee = read_u64_le(data, offset)?;
+
+    Some(DexEvent::OrcaWhirlpoolLiquidityDecreased(OrcaWhirlpoolLiquidityDecreasedEvent {
+        metadata,
+        whirlpool,
+        position,
+        tick_lower_index,
+        tick_upper_index,
+        liquidity,
+        token_a_amount,
+        token_b_amount,
+        token_a_transfer_fee,
+        token_b_transfer_fee,
+    }))
+}
+
+/// Parse Orca Whirlpool PoolInitialized event from pre-decoded data
+#[inline(always)]
+pub fn parse_pool_initialized_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let whirlpool = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let whirlpools_config = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let token_mint_a = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let token_mint_b = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let tick_spacing = read_u16_le(data, offset)?;
+    offset += 2;
+
+    let token_program_a = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let token_program_b = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let decimals_a = read_u8(data, offset)?;
+    offset += 1;
+
+    let decimals_b = read_u8(data, offset)?;
+    offset += 1;
+
+    let initial_sqrt_price = read_u128_le(data, offset)?;
+
+    Some(DexEvent::OrcaWhirlpoolPoolInitialized(OrcaWhirlpoolPoolInitializedEvent {
+        metadata,
+        whirlpool,
+        whirlpools_config,
+        token_mint_a,
+        token_mint_b,
+        tick_spacing,
+        token_program_a,
+        token_program_b,
+        decimals_a,
+        decimals_b,
+        initial_sqrt_price,
+    }))
 }
 
 /// 解析 Traded 事件

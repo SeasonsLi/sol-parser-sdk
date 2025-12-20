@@ -66,6 +66,230 @@ fn parse_structured_log(
     }
 }
 
+// =============================================================================
+// Public from_data parsers - Accept pre-decoded data, eliminate double decode
+// =============================================================================
+
+/// Parse Raydium AMM V4 SwapBaseIn event from pre-decoded data
+#[inline(always)]
+pub fn parse_swap_base_in_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let amm = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let amount_in = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let minimum_amount_out = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumAmmV4Swap(RaydiumAmmV4SwapEvent {
+        metadata,
+        amount_in,
+        minimum_amount_out,
+        max_amount_in: 0,
+        amount_out: 0,
+        token_program: Pubkey::default(),
+        amm,
+        amm_authority: Pubkey::default(),
+        amm_open_orders: Pubkey::default(),
+        amm_target_orders: None,
+        pool_coin_token_account: Pubkey::default(),
+        pool_pc_token_account: Pubkey::default(),
+        serum_program: Pubkey::default(),
+        serum_market: Pubkey::default(),
+        serum_bids: Pubkey::default(),
+        serum_asks: Pubkey::default(),
+        serum_event_queue: Pubkey::default(),
+        serum_coin_vault_account: Pubkey::default(),
+        serum_pc_vault_account: Pubkey::default(),
+        serum_vault_signer: Pubkey::default(),
+        user_source_token_account: Pubkey::default(),
+        user_destination_token_account: Pubkey::default(),
+        user_source_owner: user,
+    }))
+}
+
+/// Parse Raydium AMM V4 SwapBaseOut event from pre-decoded data
+#[inline(always)]
+pub fn parse_swap_base_out_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let amm = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let max_amount_in = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let amount_out = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumAmmV4Swap(RaydiumAmmV4SwapEvent {
+        metadata,
+        amount_in: 0,
+        minimum_amount_out: 0,
+        max_amount_in,
+        amount_out,
+        token_program: Pubkey::default(),
+        amm,
+        amm_authority: Pubkey::default(),
+        amm_open_orders: Pubkey::default(),
+        amm_target_orders: None,
+        pool_coin_token_account: Pubkey::default(),
+        pool_pc_token_account: Pubkey::default(),
+        serum_program: Pubkey::default(),
+        serum_market: Pubkey::default(),
+        serum_bids: Pubkey::default(),
+        serum_asks: Pubkey::default(),
+        serum_event_queue: Pubkey::default(),
+        serum_coin_vault_account: Pubkey::default(),
+        serum_pc_vault_account: Pubkey::default(),
+        serum_vault_signer: Pubkey::default(),
+        user_source_token_account: Pubkey::default(),
+        user_destination_token_account: Pubkey::default(),
+        user_source_owner: user,
+    }))
+}
+
+/// Parse Raydium AMM V4 Deposit event from pre-decoded data
+#[inline(always)]
+pub fn parse_deposit_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let amm = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let max_coin_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let max_pc_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let base_side = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumAmmV4Deposit(RaydiumAmmV4DepositEvent {
+        metadata,
+        max_coin_amount,
+        max_pc_amount,
+        base_side,
+        token_program: Pubkey::default(),
+        amm,
+        amm_authority: Pubkey::default(),
+        amm_open_orders: Pubkey::default(),
+        amm_target_orders: Pubkey::default(),
+        lp_mint_address: Pubkey::default(),
+        pool_coin_token_account: Pubkey::default(),
+        pool_pc_token_account: Pubkey::default(),
+        serum_market: Pubkey::default(),
+        user_coin_token_account: Pubkey::default(),
+        user_pc_token_account: Pubkey::default(),
+        user_lp_token_account: Pubkey::default(),
+        user_owner: user,
+        serum_event_queue: Pubkey::default(),
+    }))
+}
+
+/// Parse Raydium AMM V4 Withdraw event from pre-decoded data
+#[inline(always)]
+pub fn parse_withdraw_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let amm = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let amount = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumAmmV4Withdraw(RaydiumAmmV4WithdrawEvent {
+        metadata,
+        amount,
+        token_program: Pubkey::default(),
+        amm,
+        amm_authority: Pubkey::default(),
+        amm_open_orders: Pubkey::default(),
+        amm_target_orders: Pubkey::default(),
+        lp_mint_address: Pubkey::default(),
+        pool_coin_token_account: Pubkey::default(),
+        pool_pc_token_account: Pubkey::default(),
+        pool_withdraw_queue: Pubkey::default(),
+        pool_temp_lp_token_account: Pubkey::default(),
+        serum_program: Pubkey::default(),
+        serum_market: Pubkey::default(),
+        serum_coin_vault_account: Pubkey::default(),
+        serum_pc_vault_account: Pubkey::default(),
+        serum_vault_signer: Pubkey::default(),
+        user_lp_token_account: Pubkey::default(),
+        user_coin_token_account: Pubkey::default(),
+        user_pc_token_account: Pubkey::default(),
+        user_owner: user,
+        serum_event_queue: Pubkey::default(),
+        serum_bids: Pubkey::default(),
+        serum_asks: Pubkey::default(),
+    }))
+}
+
+/// Parse Raydium AMM V4 Initialize2 event from pre-decoded data
+#[inline(always)]
+pub fn parse_initialize2_from_data(data: &[u8], metadata: EventMetadata) -> Option<DexEvent> {
+    let mut offset = 0;
+
+    let amm = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let user = read_pubkey(data, offset)?;
+    offset += 32;
+
+    let nonce = data.get(offset)?.clone();
+    offset += 1;
+
+    let open_time = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let init_pc_amount = read_u64_le(data, offset)?;
+    offset += 8;
+
+    let init_coin_amount = read_u64_le(data, offset)?;
+
+    Some(DexEvent::RaydiumAmmV4Initialize2(RaydiumAmmV4Initialize2Event {
+        metadata,
+        nonce,
+        open_time,
+        init_pc_amount,
+        init_coin_amount,
+        token_program: Pubkey::default(),
+        spl_associated_token_account: Pubkey::default(),
+        system_program: Pubkey::default(),
+        rent: Pubkey::default(),
+        amm,
+        amm_authority: Pubkey::default(),
+        amm_open_orders: Pubkey::default(),
+        lp_mint: Pubkey::default(),
+        coin_mint: Pubkey::default(),
+        pc_mint: Pubkey::default(),
+        pool_coin_token_account: Pubkey::default(),
+        pool_pc_token_account: Pubkey::default(),
+        pool_withdraw_queue: Pubkey::default(),
+        amm_target_orders: Pubkey::default(),
+        pool_temp_lp: Pubkey::default(),
+        serum_program: Pubkey::default(),
+        serum_market: Pubkey::default(),
+        user_wallet: user,
+        user_token_coin: Pubkey::default(),
+        user_token_pc: Pubkey::default(),
+        user_lp_token_account: Pubkey::default(),
+    }))
+}
+
 /// 解析 SwapBaseIn 事件
 fn parse_swap_base_in_event(
     data: &[u8],

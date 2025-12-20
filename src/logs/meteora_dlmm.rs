@@ -1,11 +1,10 @@
-//! Meteora DLMM 日志解析器
+//! Meteora DLMM log parser
 //!
-//! 解析 Meteora DLMM 程序的日志事件
+//! Parse Meteora DLMM program log events
 
 use solana_sdk::signature::Signature;
 use crate::core::events::*;
 use super::utils::*;
-use crate::instr::read_vec_u64;
 
 /// Meteora DLMM 事件 discriminator 常量
 pub mod discriminators {

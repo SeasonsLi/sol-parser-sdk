@@ -4,7 +4,7 @@ pub use crate::grpc::types::{
 };
 
 use crate::grpc::types::Protocol;
-use crate::grpc::program_ids::{get_program_ids_for_protocols, PROTOCOL_PROGRAM_IDS};
+use crate::grpc::program_ids::get_program_ids_for_protocols;
 
 impl TransactionFilter {
     pub fn for_protocols(protocols: &[Protocol]) -> Self {
