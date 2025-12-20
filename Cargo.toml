@@ -42,6 +42,7 @@ serde-big-array = "0.5.1"
 futures = "0.3.31"
 futures-util = "0.3.31"
 base64 = "0.22.1"
+base64-simd = "0.8"
 bs58 = "0.5.1"
 memchr = "2.7"
 rand = "0.9.0"
@@ -91,23 +92,23 @@ libc = "0.2"
 criterion = { version = "0.7.0", features = ["html_reports"] }
 [profile.release]
 opt-level = 3
-lto = "fat"           # 更激进的 LTO（从 thin 改为 fat）
-codegen-units = 1
+lto = "thin"          # Thin LTO: 快速编译 + 良好优化（2-3分钟 vs 6分钟）
+codegen-units = 16    # 并行编译（默认值，快速）
 panic = 'abort'
 strip = true
-incremental = false   # 禁用增量编译以获得更好的优化
+incremental = true    # 启用增量编译（后续编译更快）
 
 [profile.release.package."*"]
 opt-level = 3
 codegen-units = 1
 
-# 极限性能配置文件
+# 极限性能配置文件（仅在需要榨取最后 5% 性能时使用，编译时间 6+ 分钟）
 [profile.ultra-perf]
 inherits = "release"
 opt-level = 3
-lto = "fat"
-codegen-units = 1
+lto = "fat"              # 全局 LTO - 非常慢但最优
+codegen-units = 1        # 单线程编译 - 最优但最慢
 panic = 'abort'
 strip = true
-incremental = false
-overflow-checks = false  # 禁用溢出检查（极限性能）
+incremental = false      # 禁用增量编译
+overflow-checks = false  # 禁用溢出检查
